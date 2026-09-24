@@ -40,7 +40,12 @@ async function bootstrap() {
   const origins = (process.env.CORS_ORIGIN ?? 'http://localhost:3000')
     .split(',')
     .map((origin) => origin.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .map((origin) =>
+      origin.includes('*')
+        ? new RegExp(`^${origin.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\\*/g, '.*')}$`)
+        : origin,
+    );
   if (process.env.NODE_ENV === 'production' && origins.length === 0) {
     throw new Error('CORS_ORIGIN must contain one or more trusted HTTPS origins');
   }
