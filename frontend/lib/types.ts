@@ -1,0 +1,134 @@
+export type Category = {
+  id: string;
+  name: string;
+  slug: string;
+  createdAt?: string;
+  _count?: { products: number };
+};
+
+export type ProductImage = {
+  id: string;
+  url: string;
+  alt: string | null;
+  width: number | null;
+  height: number | null;
+  blurDataUrl: string | null;
+  sortOrder: number;
+};
+
+export type Product = {
+  id: string;
+  sku: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  price: number;
+  stock: number;
+  status: 'ACTIVE' | 'DRAFT' | 'HIDDEN';
+  category: Pick<Category, 'id' | 'name' | 'slug'> | null;
+  images: ProductImage[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PaginatedResponse<T> = {
+  data: T[];
+  meta: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+};
+
+export type AuthRole = 'CUSTOMER' | 'STAFF' | 'ADMIN';
+
+export type SessionUser = {
+  id: string;
+  email: string;
+  name: string | null;
+  role: AuthRole;
+};
+
+export type AuthResult = {
+  user: SessionUser;
+};
+
+export type RegisterFields = {
+  email: string;
+  password: string;
+  name?: string;
+};
+
+export type LoginFields = {
+  email: string;
+  password: string;
+};
+
+export type CartProduct = Pick<
+  Product,
+  'id' | 'slug' | 'name' | 'price' | 'images' | 'stock'
+>;
+
+export type CartItem = {
+  id: string;
+  productId: string;
+  quantity: number;
+  product: CartProduct;
+};
+
+export type Cart = {
+  id: string;
+  items: CartItem[];
+  itemCount: number;
+  subtotal: number;
+};
+
+export type OrderItem = {
+  id: string;
+  productId: string;
+  name: string;
+  price: number;
+  quantity: number;
+  product?: Pick<Product, 'id' | 'name' | 'images'>;
+};
+
+export type Payment = {
+  id: string;
+  provider: string;
+  status: string;
+  amount: number;
+  currency: string;
+  checkoutUrl?: string | null;
+  clientSecret?: string | null;
+  transactionId?: string | null;
+  createdAt: string;
+};
+
+export type Invoice = {
+  id: string;
+  orderId: string;
+  number: string;
+  fileUrl?: string | null;
+  issuedAt: string;
+  paidAt?: string | null;
+  qrDataUrl?: string | null;
+};
+
+export type Order = {
+  id: string;
+  status: 'PENDING' | 'PAID' | 'CANCELLED';
+  subtotal: number;
+  shipping: number;
+  total: number;
+  receiverName: string;
+  receiverPhone: string;
+  receiverAddress: string;
+  note?: string | null;
+  paidAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  items: OrderItem[];
+  payment?: Payment | null;
+  invoice?: Invoice | null;
+};

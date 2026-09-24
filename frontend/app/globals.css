@@ -1,0 +1,82 @@
+@import "tailwindcss";
+
+:root {
+  --background: #FAFAFA;
+  --foreground: #111827;
+  --primary: #DC2626;
+  --primary-foreground: #FFFFFF;
+  --secondary: #F87171;
+  --secondary-foreground: #111827;
+  --accent: #F59E0B;
+  --accent-foreground: #111827;
+  --card: #FFFFFF;
+  --card-foreground: #111827;
+  --muted: #F3F4F6;
+  --muted-foreground: #6B7280;
+  --border: #FECACA;
+  --destructive: #B91C1C;
+  --destructive-foreground: #FFFFFF;
+  --ring: #DC2626;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-ring: var(--ring);
+  --font-sans: var(--font-rubik), var(--font-nunito-sans), var(--font-geist-sans);
+  --font-heading: var(--font-rubik), var(--font-nunito-sans), var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0A0A0A;
+    --foreground: #EDEDED;
+    --primary: #EF4444;
+    --primary-foreground: #FFFFFF;
+    --secondary: #F87171;
+    --secondary-foreground: #0A0A0A;
+    --accent: #FBBF24;
+    --accent-foreground: #111827;
+    --card: #171717;
+    --card-foreground: #EDEDED;
+    --muted: #1F2937;
+    --muted-foreground: #9CA3AF;
+    --border: #374151;
+    --destructive: #EF4444;
+    --destructive-foreground: #FFFFFF;
+    --ring: #EF4444;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}
+
+.font-heading {
+  font-family: var(--font-heading);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
