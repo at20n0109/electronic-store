@@ -5,6 +5,10 @@ const API_TARGET = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://127.0.0.1:3001
 export async function proxy(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
 
+  if (pathname.startsWith('/__nextjs')) {
+    return Response.json({ message: 'Forbidden' }, { status: 403 });
+  }
+
   if (!pathname.startsWith('/api/v1')) {
     return NextResponse.next();
   }
@@ -53,5 +57,5 @@ export async function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/api/v1/:path*'],
+  matcher: ['/api/v1/:path*', '/__nextjs_:path*'],
 };
