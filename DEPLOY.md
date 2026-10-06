@@ -145,9 +145,14 @@ Với services, toàn bộ app nằm dưới 1 domain ⇒ không cần CORS gi�
 4. Deploy. Domain: `https://<project>.vercel.app`. Frontend gọi backend qua rewrite; server components
    dùng binding `BACKEND_URL` cho home (ƒ dynamic) và `/invoice/:id`, `/san-pham`.
 
-> Lưu ý build backend: `@nestjs/platform-express`, `argon2`, `pdfkit`, `@aws-sdk/client-s3`, `stripe` đều là
-> runtime dep của Function (bundle Nest ~ tầm <250MB). `prisma` client đã commit trong `src/generated/prisma`,
-> nên Vercel build không cần `prisma generate`; `postinstall` có `prisma skills sync || exit 0` nên không làm vỡ build.
+> Lưu ý build backend: `buildCommand` = `npm run build -s && npx prisma generate && npm run build:vercel -s`;
+> `build:vercel` (`scripts/vercel-build.cjs`) bundle toàn bộ `dist/bootstrap.js` thành **một file `server.cjs`** (ESM→CJS,
+> inline hết node_modules nên Function tự chứa, không cần package từng dep; chỉ giữ `pdfkit` external — cần font file thật).
+> Service config dùng `"runtime": "node"`, `"entrypoint": "server.cjs"` (extension `.cjs` = chắc chắn load CJS).
+> `src/main.ts` đã đổi tên `src/bootstrap.ts` vì tên `main.ts` nằm trong danh sách detection của Vercel và bị ưu tiên lấy làm entrypoint.
+> Password hash dùng Node `crypto.scryptSync` (không còn `argon2` — tránh native module/install-scripts trên npm mới);
+> `package.json` có `trustedDependencies` để npm cho chạy install-scripts của `@prisma/engines`, `esbuild`, `prisma`.
+> `prisma` client đã commit trong `src/generated/prisma`, build có chạy `prisma generate` cho chắc; `postinstall` có `prisma skills sync || exit 0`.
 
 ---
 

@@ -5,8 +5,12 @@
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import * as argon2 from 'argon2';
-import { createHash, randomBytes } from 'node:crypto';
+import {
+  createHash,
+  randomBytes,
+  scryptSync,
+  timingSafeEqual,
+} from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { LoginDto } from './dto/login.dto.js';
 import { RegisterDto } from './dto/register.dto.js';
@@ -14,6 +18,56 @@ import { RegisterDto } from './dto/register.dto.js';
 const REFRESH_BYTES = 48;
 const ACCESS_TTL_DEFAULT = 900;
 const REFRESH_TTL_DEFAULT = 604800;
+const SCRYPT_N = 16384;
+const SCRYPT_R = 8;
+const SCRYPT_P = 1;
+const SCRYPT_KEYLEN = 32;
+const SCRYPT_SALT_LEN = 16;
+const SCRYPT_MAXMEM = 64 * 1024 * 1024;
+const SCRYPT_PREFIX = 'scrypt';
+
+function hashPassword(password: string): string {
+  const salt = randomBytes(SCRYPT_SALT_LEN);
+  const derived = scryptSync(password, salt, SCRYPT_KEYLEN, {
+    N: SCRYPT_N,
+    r: SCRYPT_R,
+    p: SCRYPT_P,
+    maxmem: SCRYPT_MAXMEM,
+  });
+  return [
+    SCRYPT_PREFIX,
+    SCRYPT_N,
+    SCRYPT_R,
+    SCRYPT_P,
+    salt.toString('base64'),
+    derived.toString('base64'),
+  ].join(':');
+}
+
+function verifyPassword(stored: string, password: string): boolean {
+  const parts = stored.split(':');
+  if (parts.length !== 6 || parts[0] !== SCRYPT_PREFIX) {
+    return false;
+  }
+  const N = Number(parts[1]);
+  const r = Number(parts[2]);
+  const p = Number(parts[3]);
+  const salt = Buffer.from(parts[4], 'base64');
+  const expected = Buffer.from(parts[5], 'base64');
+  try {
+    const derived = scryptSync(password, salt, expected.length, {
+      N,
+      r,
+      p,
+      maxmem: SCRYPT_MAXMEM,
+    });
+    return (
+      derived.length === expected.length && timingSafeEqual(derived, expected)
+    );
+  } catch {
+    return false;
+  }
+}
 
 export interface SessionUser {
   id: string;
@@ -61,12 +115,7 @@ export class AuthService {
       throw new ConflictException('Email already registered');
     }
 
-    const passwordHash = await argon2.hash(dto.password, {
-      type: argon2.argon2id,
-      memoryCost: 19456,
-      timeCost: 2,
-      parallelism: 1,
-    });
+    const passwordHash = hashPassword(dto.password);
 
     const user = await this.prisma.user.create({
       data: { email, passwordHash, name: dto.name?.trim() || null },
@@ -84,7 +133,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    const ok = await argon2.verify(user.passwordHash, dto.password);
+    const ok = verifyPassword(user.passwordHash, dto.password);
 
     if (!ok) {
       throw new UnauthorizedException('Invalid email or password');
