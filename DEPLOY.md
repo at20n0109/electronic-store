@@ -90,6 +90,7 @@ Với services, toàn bộ app nằm dưới 1 domain ⇒ không cần CORS gi�
 3. **Public URL** cho ảnh admin upload: Settings → bật **Public access** → domain `https://pub-<hash>.r2.dev`
    → env `S3_PUBLIC_URL` (không trailing slash). Để trống thì ảnh upload không xem được (PDF download vẫn OK qua API — không cần public).
 4. **CORS** cho presigned PUT từ trình duyệt (origin = domain Vercel duy nhất):
+   Dashboard R2 → bucket `electronic-store` → **Settings → CORS** → Add (paste JSON):
    ```json
    [
      {
@@ -101,6 +102,10 @@ Với services, toàn bộ app nằm dưới 1 domain ⇒ không cần CORS gi�
      }
    ]
    ```
+   > ⚠️ **Không dùng `PutBucketCors` qua S3 API**: R2 từ chối XML do SDK sinh
+   > (`The XML you provided was not well formed or did not validate against our published schema`),
+   > cả virtual-host lẫn path-style. Chỉ mở CORS từ dashboard. Bước này **chỉ cần cho admin upload ảnh**
+   > (presigned PUT từ trình duyệt); demo user không cần.
 5. `S3_REGION=auto`, `S3_ACL` **để trống** (R2 không hỗ trợ ACL), `S3_ENDPOINT=https://<accountid>.r2.cloudflarestorage.com`.
 
 ---
