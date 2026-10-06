@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCart } from '@/context/CartContext';
-import { checkout, createOrder } from '@/lib/api';
-import type { CreateOrderFields } from '@/lib/api';
+import { checkout, createOrder, getPaymentMethods } from '@/lib/api';
+import type { CreateOrderFields, PaymentMethod } from '@/lib/api';
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -17,6 +17,22 @@ export default function CheckoutPage() {
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [methods, setMethods] = useState<PaymentMethod[]>([]);
+  const [provider, setProvider] = useState<string | undefined>('mock');
+
+  useEffect(() => {
+    getPaymentMethods()
+      .then((list) => {
+        const enabled = list.filter((method) => method.enabled);
+        setMethods(enabled.length > 0 ? enabled : list);
+        setProvider((current) =>
+          current && enabled.some((method) => method.provider === current)
+            ? current
+            : enabled[0]?.provider,
+        );
+      })
+      .catch(() => setMethods([]));
+  }, []);
 
   if (cart?.itemCount === 0) {
     return (
@@ -38,7 +54,7 @@ export default function CheckoutPage() {
     setError('');
     try {
       const order = await createOrder({ ...fields, note });
-      const result = (await checkout(order.id)) as {
+      const result = (await checkout(order.id, provider)) as {
         checkoutUrl?: string;
         clientSecret?: string;
         status?: string;
@@ -130,6 +146,47 @@ export default function CheckoutPage() {
             className="w-full rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-200 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
           />
         </div>
+
+        {methods.length > 0 && (
+          <div>
+            <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
+              Phương thức thanh toán
+            </label>
+            <div className="space-y-2">
+              {methods.map((method) => {
+                const active = provider === method.provider;
+                return (
+                  <label
+                    key={method.provider}
+                    className={`flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-sm transition-colors ${
+                      active
+                        ? 'border-red-500 bg-red-50 dark:border-red-500 dark:bg-red-950/30'
+                        : 'border-zinc-300 bg-white dark:border-zinc-700 dark:bg-zinc-900'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="provider"
+                      value={method.provider}
+                      checked={active}
+                      onChange={() => setProvider(method.provider)}
+                      className="accent-red-600"
+                    />
+                    <span className="font-semibold text-zinc-900 dark:text-zinc-50">
+                      {method.label}
+                    </span>
+                    {method.provider === 'momo' && (
+                      <span className="text-xs text-zinc-500">Quét QR / ví điện tử</span>
+                    )}
+                    {method.provider === 'paypal' && (
+                      <span className="text-xs text-zinc-500">Chuyển tới PayPal</span>
+                    )}
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {error && <p className="text-sm text-red-600">{error}</p>}
 

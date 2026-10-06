@@ -154,12 +154,23 @@ export async function createOrder(fields: CreateOrderFields): Promise<Order> {
 
 export async function checkout(
   orderId: string,
+  provider?: string,
 ): Promise<Record<string, unknown>> {
   return apiFetch<Record<string, unknown>>('/api/v1/payments/checkout', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ orderId }),
+    body: JSON.stringify({ orderId, ...(provider ? { provider } : {}) }),
   });
+}
+
+export interface PaymentMethod {
+  provider: string;
+  label: string;
+  enabled: boolean;
+}
+
+export async function getPaymentMethods(): Promise<PaymentMethod[]> {
+  return apiFetch<PaymentMethod[]>('/api/v1/payments/methods');
 }
 
 export async function getMyOrders(): Promise<Order[]> {

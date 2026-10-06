@@ -8,6 +8,7 @@ import type { Request } from 'express';
 import { PaymentProvider, PaymentStatus } from '../generated/prisma/enums.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { MockPaymentProvider } from './providers/mock.provider.js';
+import { MomoPaymentProvider } from './providers/momo.provider.js';
 import { PaypalPaymentProvider } from './providers/paypal.provider.js';
 import { StripePaymentProvider } from './providers/stripe.provider.js';
 import { VnpayPaymentProvider } from './providers/vnpay.provider.js';
@@ -16,6 +17,14 @@ import type {
   OrderLineItem,
   PaymentProvider as PaymentProviderInterface,
 } from './types.js';
+
+const PROVIDER_LABELS: Record<string, string> = {
+  mock: 'Thanh toán thử (demo)',
+  paypal: 'PayPal',
+  momo: 'Ví MoMo',
+  vnpay: 'VNPay',
+  stripe: 'Thẻ (Stripe)',
+};
 
 function toOrderForPayment(order: {
   id: string;
@@ -50,37 +59,75 @@ function toOrderForPayment(order: {
 
 @Injectable()
 export class PaymentsService {
-  private readonly provider: PaymentProviderInterface;
+  private readonly providers: Record<string, PaymentProviderInterface>;
   private readonly appUrl: string;
 
   constructor(
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
   ) {
-    this.provider = this.buildProvider();
+    const get = (key: string) => this.config.get<string>(key);
+    this.providers = { mock: new MockPaymentProvider() };
+    if (this.isEnabled('momo')) {
+      this.providers['momo'] = new MomoPaymentProvider(get);
+    }
+    if (this.isEnabled('paypal')) {
+      this.providers['paypal'] = new PaypalPaymentProvider(get);
+    }
+    if (this.isEnabled('vnpay')) {
+      this.providers['vnpay'] = new VnpayPaymentProvider(get);
+    }
+    if (this.isEnabled('stripe')) {
+      this.providers['stripe'] = new StripePaymentProvider(get);
+    }
     this.appUrl = this.config.get<string>('NEXT_PUBLIC_APP_URL') ?? '';
   }
 
-  private buildProvider(): PaymentProviderInterface {
+  private defaultProvider(): PaymentProviderInterface {
     const chosen =
       (this.config.get<string>('PAYMENT_PROVIDER') ?? 'mock').toLowerCase();
-    const get = (key: string) => this.config.get<string>(key);
+    return this.providers[chosen] ?? this.providers['mock'];
+  }
 
-    switch (chosen) {
-      case 'paypal':
-        return new PaypalPaymentProvider(get);
-      case 'stripe':
-        return new StripePaymentProvider(get);
-      case 'vnpay':
-        return new VnpayPaymentProvider(get);
-      default:
-        return new MockPaymentProvider();
+  private resolve(name: string | undefined): PaymentProviderInterface {
+    if (!name) {
+      return this.defaultProvider();
     }
+    const provider = this.providers[name.toLowerCase()];
+    if (!provider) {
+      throw new BadRequestException(`Unknown payment provider: ${name}`);
+    }
+    return provider;
+  }
+
+  private isEnabled(name: string): boolean {
+    const get = (key: string) => this.config.get<string>(key);
+    switch (name) {
+      case 'momo':
+        return Boolean(get('MOMO_PARTNER_CODE'));
+      case 'paypal':
+        return Boolean(get('PAYPAL_CLIENT_ID'));
+      case 'vnpay':
+        return Boolean(get('PAYMENT_VNPAY_TMN_CODE'));
+      case 'stripe':
+        return Boolean(get('STRIPE_SECRET_KEY'));
+      default:
+        return true;
+    }
+  }
+
+  availableMethods(): Array<{ provider: string; label: string; enabled: boolean }> {
+    return Object.keys(this.providers).map((name) => ({
+      provider: name,
+      label: PROVIDER_LABELS[name] ?? name,
+      enabled: this.isEnabled(name),
+    }));
   }
 
   async createCheckout(
     userId: string,
     orderId: string,
+    providerName: string | undefined,
     req: Request,
   ): Promise<Record<string, unknown>> {
     const order = await this.prisma.order.findUnique({
@@ -91,7 +138,8 @@ export class PaymentsService {
       throw new NotFoundException('Order not found');
     }
 
-    const result = await this.provider.create(
+    const provider = this.resolve(providerName);
+    const result = await provider.create(
       toOrderForPayment(order),
       req.ip,
       req.get('user-agent'),
@@ -130,6 +178,27 @@ export class PaymentsService {
     };
   }
 
+  private async markPaid(
+    order: { id: string; paymentId?: string; status?: string },
+    transactionId?: string,
+    payload?: unknown,
+  ) {
+    if (order.paymentId) {
+      await this.prisma.payment.update({
+        where: { id: order.paymentId },
+        data: {
+          status: PaymentStatus.SUCCEEDED,
+          transactionId,
+          ...(payload ? { payload: payload as any } : {}),
+        },
+      });
+    }
+    await this.prisma.order.update({
+      where: { id: order.id },
+      data: { status: 'PAID', paidAt: new Date() },
+    });
+  }
+
   async handleVnpayReturn(userId: string, query: Record<string, string>) {
     const orderId = query['vnp_TxnRef'];
     if (!orderId) {
@@ -145,8 +214,8 @@ export class PaymentsService {
     }
 
     const verified =
-      typeof this.provider.verify === 'function'
-        ? this.provider.verify(query, toOrderForPayment(order))
+      typeof this.providers['vnpay']?.verify === 'function'
+        ? await this.providers['vnpay'].verify!(query, toOrderForPayment(order))
         : true;
 
     if (!verified) {
@@ -155,18 +224,11 @@ export class PaymentsService {
 
     const responseCode = query['vnp_ResponseCode'];
     if (responseCode === '00' && order.payment) {
-      await this.prisma.payment.update({
-        where: { id: order.payment.id },
-        data: {
-          status: PaymentStatus.SUCCEEDED,
-          transactionId: query['vnp_TransactionNo'],
-          payload: query as any,
-        },
-      });
-      await this.prisma.order.update({
-        where: { id: order.id },
-        data: { status: 'PAID', paidAt: new Date() },
-      });
+      await this.markPaid(
+        { id: order.id, paymentId: order.payment.id, status: order.status },
+        query['vnp_TransactionNo'],
+        query,
+      );
     }
 
     return {
@@ -177,14 +239,55 @@ export class PaymentsService {
     };
   }
 
+  async handleMomoReturn(userId: string, query: Record<string, string>) {
+    const orderId = query['orderId'];
+    if (!orderId) {
+      throw new BadRequestException('Missing orderId');
+    }
+
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId, userId },
+      include: { payment: true },
+    });
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    const provider = this.providers['momo'];
+    if (!provider?.verify) {
+      throw new BadRequestException('MoMo provider is not configured');
+    }
+    const verified = await provider.verify(query, toOrderForPayment(order));
+    if (!verified) {
+      throw new BadRequestException('Invalid MoMo signature');
+    }
+
+    if (query['resultCode'] === '0' && order.payment) {
+      await this.markPaid(
+        { id: order.id, paymentId: order.payment.id, status: order.status },
+        query['transId'],
+        query,
+      );
+    }
+
+    return {
+      orderId: order.id,
+      status: order.status,
+      returnUrl: this.appUrl
+        ? `${this.appUrl}/checkout/success?orderId=${order.id}`
+        : `/checkout/success?orderId=${order.id}`,
+    };
+  }
+
   async handlePaypalReturn(userId: string, payPalOrderId: string) {
-    if (typeof this.provider.capture !== 'function') {
+    const provider = this.providers['paypal'];
+    if (typeof provider?.capture !== 'function') {
       throw new BadRequestException(
         'Payment provider does not support PayPal return',
       );
     }
 
-    const result = await this.provider.capture(payPalOrderId);
+    const result = await provider.capture(payPalOrderId);
     if (!result.succeeded || !result.orderId) {
       throw new BadRequestException('Payment was not completed');
     }
@@ -198,18 +301,11 @@ export class PaymentsService {
     }
 
     if (order.payment) {
-      await this.prisma.payment.update({
-        where: { id: order.payment.id },
-        data: {
-          status: PaymentStatus.SUCCEEDED,
-          transactionId: result.transactionId,
-        },
-      });
+      await this.markPaid(
+        { id: order.id, paymentId: order.payment.id, status: order.status },
+        result.transactionId,
+      );
     }
-    await this.prisma.order.update({
-      where: { id: order.id },
-      data: { status: 'PAID', paidAt: new Date() },
-    });
 
     return {
       orderId: order.id,
@@ -227,8 +323,22 @@ export class PaymentsService {
       return { received: false };
     }
 
-    if (this.provider instanceof StripePaymentProvider && signature) {
-      const event = this.provider.verifySignature({
+    const text = rawBody.toString('utf8');
+    let momoBody: Record<string, unknown> | null = null;
+    try {
+      momoBody = JSON.parse(text) as Record<string, unknown>;
+    } catch {
+      momoBody = null;
+    }
+
+    if (momoBody && momoBody.partnerCode && momoBody.resultCode !== undefined) {
+      await this.handleMomoIpn(momoBody);
+      return { received: true };
+    }
+
+    const stripeProvider = this.providers['stripe'];
+    if (stripeProvider instanceof StripePaymentProvider && signature) {
+      const event = stripeProvider.verifySignature({
         payload: rawBody,
         signature: signature ?? '',
         endpointSecret: this.config.get<string>('PAYMENT_WEBHOOK_SECRET') ?? '',
@@ -243,22 +353,42 @@ export class PaymentsService {
           metadata?: { orderId?: string };
         };
         if (intent.metadata?.orderId) {
-          await this.prisma.payment.updateMany({
-            where: { orderId: intent.metadata.orderId },
-            data: {
-              status: PaymentStatus.SUCCEEDED,
-              transactionId: intent.id,
-            },
-          });
-          await this.prisma.order.updateMany({
-            where: { id: intent.metadata.orderId },
-            data: { status: 'PAID', paidAt: new Date() },
-          });
+          await this.markPaidForOrder(intent.metadata.orderId, intent.id);
         }
       }
     }
 
     return { received: true };
+  }
+
+  private async handleMomoIpn(body: Record<string, unknown>) {
+    const provider = this.providers['momo'];
+    if (!(provider instanceof MomoPaymentProvider) || !provider.verifyIpn(body)) {
+      return;
+    }
+    if (String(body.resultCode ?? '') !== '0') {
+      return;
+    }
+    const orderId = typeof body.orderId === 'string' ? body.orderId : '';
+    if (!orderId) {
+      return;
+    }
+    await this.markPaidForOrder(orderId, typeof body.transId === 'string' ? body.transId : undefined, body);
+  }
+
+  private async markPaidForOrder(
+    orderId: string,
+    transactionId?: string,
+    payload?: unknown,
+  ) {
+    const payment = await this.prisma.payment.findUnique({
+      where: { orderId },
+    });
+    await this.markPaid(
+      { id: orderId, paymentId: payment?.id, status: undefined },
+      transactionId,
+      payload,
+    );
   }
 
   private toPrismaProvider(name: string): PaymentProvider {

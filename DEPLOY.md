@@ -133,13 +133,18 @@ Với services, toàn bộ app nằm dưới 1 domain ⇒ không cần CORS gi�
    | S3_REGION | `auto` |
    | S3_ACL | *(để trống)* |
    | S3_PUBLIC_URL | `https://pub-<hash>.r2.dev` hoặc custom domain |
-   | PAYMENT_PROVIDER | `paypal` |
-   | PAYPAL_CLIENT_ID / PAYPAL_SECRET | từ PayPal sandbox app (mục 4) |
+   | PAYMENT_PROVIDER | `mock` (default khi request không nêu `provider`; frontend gọi `GET /api/v1/payments/methods` để user chọn) |
+   | PAYPAL_CLIENT_ID / PAYPAL_SECRET | từ PayPal sandbox app (mục 4) — có thì PayPal hiện trong danh sách trả tiền |
    | PAYPAL_MODE | `sandbox` |
    | PAYPAL_RETURN_URL | `https://<project>.vercel.app/api/v1/payments/paypal/return` |
    | PAYPAL_CANCEL_URL | `https://<project>.vercel.app/checkout` |
    | PAYPAL_CURRENCY | `USD` |
    | PAYPAL_USD_RATE | `25000` (VND → USD) |
+   | MOMO_PARTNER_CODE / MOMO_ACCESS_KEY / MOMO_SECRET_KEY | từ triển khai MoMo merchant (business.momo.vn) — set là MoMo hiện trong danh sách trả tiền |
+   | MOMO_MODE | `sandbox` |
+   | MOMO_REQUEST_TYPE | `captureWallet` |
+   | MOMO_REDIRECT_URL | `https://<project>.vercel.app/api/v1/payments/momo/return` |
+   | MOMO_IPN_URL | `https://<project>.vercel.app/api/v1/payments/webhook` |
    | NEXT_PUBLIC_APP_URL | `https://<project>.vercel.app` (QR xác minh hoá đơn) |
    | NEXT_PUBLIC_DISABLE_PROXY | `true` (tắt `proxy.ts`) |
    | NEXT_PUBLIC_API_URL | *(để trống)* → relative `/api` → rewrite |
@@ -170,6 +175,17 @@ Với services, toàn bộ app nằm dưới 1 domain ⇒ không cần CORS gi�
    - VND không phải currency PayPal hỗ trợ ⇒ provider chuyển `total VND / PAYPAL_USD_RATE` (mặc định 25.000 VND/$) → USD.
    - **Hosted checkout** (redirect), không nhúng SDK ⇒ CSP không nới `paypal.com`.
    - JWT cookie sống 15 phút; khách chậm hơn thì cần refresh token (frontend chưa tự gọi — demo tăng `JWT_ACCESS_TTL`).
+
+---
+
+## 4.1 MoMo — merchant keys
+
+1. Đăng ký triển khai MoMo (test env) tại https://business.momo.vn → nhận `partnerCode`, `accessKey`, `secretKey`.
+2. Set `MOMO_*` env (bảng mục 3) → provider autoboot và xuất hiện trong `GET /payments/methods`.
+3. Cơ chế: checkout tạo link `payUrl` (v2 All-in-One, `captureWallet`) → user thanh toán → MoMo redirect
+   `/api/v1/payments/momo/return` (đổi ra `resultCode=0` → order PAID) + IPN gửi gần như đồng thời tới `/api/v1/payments/webhook`
+   (verify HMAC-SHA256 signature, idempotent qua `markPaidForOrder`).
+4. Không cần key nào cũng chạy: `PAYMENT_PROVIDER=mock` + frontend chỉ hiện phương thức đã cấu hình env.
 
 ---
 

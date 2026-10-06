@@ -12,7 +12,17 @@ export class PaymentsController {
   @UseGuards(JwtGuard)
   checkout(@Req() req: Request, @Body() dto: CheckoutDto) {
     const user = (req as unknown as { user: { id: string } }).user;
-    return this.payments.createCheckout(user.id, dto.orderId, req);
+    return this.payments.createCheckout(
+      user.id,
+      dto.orderId,
+      dto.provider,
+      req,
+    );
+  }
+
+  @Get('methods')
+  methods() {
+    return this.payments.availableMethods();
   }
 
   @Get('return')
@@ -20,6 +30,18 @@ export class PaymentsController {
   vnpayReturn(@Query() query: Record<string, string>, @Req() req: Request) {
     const user = (req as unknown as { user: { id: string } }).user;
     return this.payments.handleVnpayReturn(user.id, query);
+  }
+
+  @Get('momo/return')
+  @UseGuards(JwtGuard)
+  async momoReturn(
+    @Query() query: Record<string, string>,
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
+    const user = (req as unknown as { user: { id: string } }).user;
+    const result = await this.payments.handleMomoReturn(user.id, query);
+    res.redirect(result.returnUrl);
   }
 
   @Get('paypal/return')
