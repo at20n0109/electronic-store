@@ -4,19 +4,21 @@ const path = require('path');
 
 const clientPath = path.join(__dirname, '..', 'dist', 'generated', 'prisma', 'client.js');
 const raw = fs.readFileSync(clientPath, 'utf8');
-const patched = raw.replace(
-  /^\s*globalThis\['__dirname'\]\s*=\s*path\.dirname\(fileURLToPath\(import\.meta\.url\)\)\s*;?/m,
-  "globalThis['__dirname'] = path.dirname(__filename);",
-);
-if (patched === raw) {
-  console.error('[vercel-build] expected import.meta.url shim not found in generated client');
-  process.exit(1);
+if (raw.includes('import.meta.url')) {
+  const patched = raw.replace(
+    /^\s*globalThis\['__dirname'\]\s*=\s*path\.dirname\(fileURLToPath\(import\.meta\.url\)\)\s*;?/m,
+    "globalThis['__dirname'] = path.dirname(__filename);",
+  );
+  if (patched === raw) {
+    console.error('[vercel-build] expected import.meta.url shim not found in generated client');
+    process.exit(1);
+  }
+  fs.writeFileSync(clientPath, patched);
 }
-fs.writeFileSync(clientPath, patched);
 
 esbuild
   .build({
-    entryPoints: ['dist/main.js'],
+    entryPoints: ['dist/bootstrap.js'],
     bundle: true,
     platform: 'node',
     format: 'cjs',
