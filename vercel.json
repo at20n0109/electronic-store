@@ -16,7 +16,7 @@
     "backend": {
       "root": "backend",
       "runtime": "node",
-      "entrypoint": "server.cjs",
+      "entrypoint": "server.mjs",
       "buildCommand": "npm run build -s && npx prisma generate && npm run build:vercel -s"
     }
   },
