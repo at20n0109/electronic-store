@@ -14,7 +14,10 @@
       ]
     },
     "backend": {
-      "root": "backend"
+      "root": "backend",
+      "runtime": "node",
+      "entrypoint": "server.cjs",
+      "buildCommand": "npm run build -s && npx prisma generate && npm run build:vercel -s"
     }
   },
   "rewrites": [
