@@ -2,6 +2,7 @@ import { cookies } from 'next/headers';
 import type { Invoice, Order } from './types';
 
 export const serverApiUrl =
+  process.env.BACKEND_URL ??
   process.env.INTERNAL_API_URL ??
   process.env.NEXT_PUBLIC_API_URL ??
   process.env.NEXT_PUBLIC_BACKEND_URL ??

@@ -1,21 +1,53 @@
-# DEPLOY.md — Đưa PC Store lên internet (Vercel + Render + Neon + Cloudflare R2)
+# DEPLOY.md — Đưa PC Store lên internet (Vercel Services + Neon + Cloudflare R2)
 
-Kiến trúc đích:
+Kiến trúc đích: **một project duy nhất trên Vercel** chứa 2 service (cùng 1 domain, routing chung),
+backend chạy như **1 Vercel Function (NestJS, Fluid compute)** — không còn Render.
 
 ```
-Browser ── https://<frontend>.vercel.app ── Vercel (Next.js)
-   │   /api/* → Vercel rewrite (same-origin proxy)
-   ▼
-https://<backend>.onrender.com ── Render (NestJS) ── Neon (Postgres)
-                                        │
-                                        ├─ Cloudflare R2 (S3-compatible: ảnh + PDF invoice)
-                                        └─ PayPal Orders v2 (sandbox)
+Browser ── https://<project>.vercel.app ───────────────────────────────┐
+            │  /api/(.*)  → rewrite → service "backend" (NestJS Function)
+            │  /(.*)      → rewrite → service "frontend" (Next.js)
+            │  (server) frontend → service "backend" qua binding BACKEND_URL
+            ▼
+  Vercel service "backend" ── Neon (Postgres)
+            │
+            ├─ Cloudflare R2 (S3-compatible: ảnh + PDF invoice)
+            └─ PayPal Orders v2 (sandbox)
 ```
 
-Same-origin là BẮT BUỘC: auth dùng httpOnly cookie (`access_token`, `refresh_token`,
-`csrf_token`, SameSite=Lax, không có Domain) nên trình duyệt phải gọi `/api/*` trên **cùng tên miền**
-với frontend ⇒ dùng Vercel rewrite như nginx LB hiện tại. Không bắt buộc custom domain
-(`<frontend>.vercel.app` là đủ).
+Same-origin là bắt buộc: auth dùng httpOnly cookie (`access_token`, `refresh_token`, `csrf_token`,
+SameSite=Lax, không Domain) nên trình duyệt luôn gọi `/api/*` trên cùng tên miền với frontend.
+Với services, toàn bộ app nằm dưới 1 domain ⇒ không cần CORS giữa các service.
+
+`vercel.json` ở **repo root** (cấu hình services):
+
+```json
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "services": {
+    "frontend": {
+      "root": "frontend",
+      "framework": "nextjs",
+      "bindings": [
+        { "type": "service", "service": "backend", "format": "url", "env": "BACKEND_URL" }
+      ]
+    },
+    "backend": { "root": "backend" }
+  },
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": { "service": "backend" } },
+    { "source": "/(.*)", "destination": { "service": "frontend" } }
+  ]
+}
+```
+
+- `frontend` là service công khai theo rewrite `/(.*)`; `backend` **internal** (chỉ gọi được qua rewrite `/api/(.*)`
+  hoặc qua binding, không có URL public riêng).
+- `BACKEND_URL` do Vercel sinh ra và inject vào frontend **lúc runtime** (functions), KHÔNG được tự đặt.
+  Nó không resolve ở build và không có trong middleware ⇒ frontend `app/page.tsx` đánh `export const dynamic='force-dynamic'`
+  và `proxy.ts` tắt bằng `NEXT_PUBLIC_DISABLE_PROXY=true`.
+- Backend là NestJS chuẩn (`src/main.ts`, giữ `bootstrap()`/`app.listen()`) — Vercel tự nhận diện, đóng gói thành 1 Function
+  trên Fluid compute. Không cần serverless-http, không cần Docker.
 
 ---
 
@@ -23,36 +55,28 @@ với frontend ⇒ dùng Vercel rewrite như nginx LB hiện tại. Không bắt
 
 | Dịch vụ | URL | Cần làm |
 |---|---|---|
-| Neon | https://neon.tech | Tạo project (region gần nhất, free) |
-| Render | https://dashboard.render.com | Tạo 1 Web Service (free Starter) |
-| Vercel | https://vercel.com | Import repo `electronic-store` |
-| Cloudflare R2 | https://dash.cloudflare.com | Tạo bucket + API token (S3) |
-| PayPal Developer | https://developer.paypal.com | Tạo sandbox app + sandbox buyer |
+| Neon | https://neon.tech | Project (pooled connection string) |
+| Vercel | https://vercel.com | `vercel login` (CLI) hoặc import GitHub |
+| Cloudflare R2 | https://dash.cloudflare.com | Bucket + API token (S3) |
+| PayPal Developer | https://developer.paypal.com | Sandbox app + buyer |
 
 ---
 
 ## 1. Neon — Postgres
 
-1. New Project → tên `pc-store`, region gần Việt Nam (vd Singapore).
-2. Lấy **connection string** (tab "Connect"):
-   - dùng bản **pooled** (`-pooler.neon.tech`, `?sslmode=require`) để tránh giới hạn connection trên free tier.
-   - bản direct dùng khi cần (`migrate`, `psql`).
-3. Apply migration + tạo dữ liệu (chạy từ máy local, thay `DATABASE_URL` bằng Neon **direct**):
-
-```pwsh
-# trong backend/
-$env:DATABASE_URL="postgresql://USER:PASS@ep-xxx.region.aws.neon.tech/pc-store?sslmode=require"
-npx prisma migrate deploy
-npx prisma db seed
-```
-
-4. (Tùy chọn) Tạo 1 user admin để upload ảnh sản phẩm:
-   đăng ký qua web (role CUSTOMER) rồi:
-   `docker exec -i ... psql` hoặc Dashboard Neon → SQL Editor:
+1. Lấy **pooled** connection string (`-pooler.neon.tech`, `?sslmode=require`).
+2. Apply migration + seed (chạy từ máy local trong `backend/`):
+   ```pwsh
+   $env:DATABASE_URL="postgresql://USER:PASS@ep-xxx-pooler.neon.tech/neondb?sslmode=require"
+   npx prisma migrate deploy
+   npx prisma db seed
+   ```
+   Vercel **không tự chạy migration**. Mỗi khi schema đổi: `npx prisma migrate deploy --prod` rồi mới deploy.
+3. (Tuỳ chọn) Tạo admin upload ảnh: đăng ký bằng web rồi Dashboard Neon → SQL Editor:
    `UPDATE "User" SET role='ADMIN' WHERE email='ban@ex.com';`
 
-> Seed không tạo ảnh sản phẩm (DB `ProductImage` rỗng) — ảnh hiển thị là static trong
-> `frontend/public`; upload ảnh thật thì cần phần R2 bên dưới.
+> Seed không tạo ảnh sản phẩm (DB `ProductImage` rỗng) — ảnh hiển thị là static trong `frontend/public`;
+> upload ảnh thật cần phần R2 bên dưới.
 
 ---
 
@@ -61,17 +85,15 @@ npx prisma db seed
 `UploadsService` dùng `getOrThrow(S3_BUCKET / S3_ACCESS_KEY / S3_SECRET_KEY / S3_ENDPOINT)`
 → không cấu hình R2 là backend **crash lúc boot**.
 
-1. R2 → Create bucket `electronic-store`.
+1. R2 → bucket `electronic-store` (đã tạo).
 2. R2 → **Manage R2 API Tokens** → Create token (Object Read & Write) → copy `S3_ACCESS_KEY`, `S3_SECRET_KEY`.
-3. **Public URL** cho object:
-   - cách nhanh: Settings → Turn on **Public access** (tick *Submit for index* tuỳ chọn) → lấy domain `https://pub-<hash>.r2.dev`.
-   - hoặc **custom domain** (đẹp hơn, cần domain riêng): thêm `media.tenmien.com` → CNAME tới host R2.
-   - gán cho env `S3_PUBLIC_URL` (không trailing slash). Nếu bỏ trống, URL ảnh lưu vào DB sẽ là key tương đối ⇒ ảnh không xem được — nên đặt.
-4. **CORS** (cache/cross-origin cho presigned PUT từ trình duyệt): bucket → **Settings → CORS**:
+3. **Public URL** cho ảnh admin upload: Settings → bật **Public access** → domain `https://pub-<hash>.r2.dev`
+   → env `S3_PUBLIC_URL` (không trailing slash). Để trống thì ảnh upload không xem được (PDF download vẫn OK qua API — không cần public).
+4. **CORS** cho presigned PUT từ trình duyệt (origin = domain Vercel duy nhất):
    ```json
    [
      {
-       "AllowedOrigins": ["https://<frontend>.vercel.app"],
+       "AllowedOrigins": ["https://<project>.vercel.app"],
        "AllowedMethods": ["GET", "PUT", "HEAD"],
        "AllowedHeaders": ["Content-Type", "x-amz-content-sha256"],
        "ExposeHeaders": ["ETag"],
@@ -79,136 +101,90 @@ npx prisma db seed
      }
    ]
    ```
-5. `S3_REGION=auto` (R2), `S3_ACL` **để trống** (R2 không hỗ trợ ACL), `S3_ENDPOINT=https://<accountid>.r2.cloudflarestorage.com`.
+5. `S3_REGION=auto`, `S3_ACL` **để trống** (R2 không hỗ trợ ACL), `S3_ENDPOINT=https://<accountid>.r2.cloudflarestorage.com`.
 
 ---
 
-## 3. Render — backend
+## 3. Vercel — project services (frontend + backend)
 
-1. Dashboard → **New + → Web Service** → connect repo → **Root Directory: `backend`**.
-2. Runtime **Node**, version ≥ 22.
-3. Build & Start:
-   - Build command: `npm ci && npx prisma generate && npm run build`
-   - Start command: `sh -c "npx prisma migrate deploy && node dist/main"`
-   - (Trên Render bản install đầy đủ nên `npx prisma` có sẵn; save lại cả migration để auto-run mỗi lần deploy.)
-4. **Health check**: `/api/v1/health` (Render tắt giám sát lỗi crash nếu set đúng).
-5. Env (xem bảng dưới). Render deploy lần đầu **đã set hết env bắt buộc** (nhất là `DATABASE_URL`, `S3_*`, `ENCRYPTION_KEY`, `JWT_ACCESS_SECRET`, `CORS_ORIGIN`, `PAYPAL_*`) rồi mới bấm Deploy.
-6. Copy URL Web Service, vd `https://pc-store-api.onrender.com`.
+1. `vercel login` rồi import repo (hoặc `vercel --prod` từ repo root). **Root Directory = repo root** (không phải `frontend`).
+2. Vercel đọc `vercel.json` gốc → build 2 service. Frontend Next.js ↔ Backend NestJS.
+3. Đặt **project environment variables** (áp cho cả 2 service) trước lần deploy đầu:
 
-### Env Render
+   | Key | Giá trị |
+   |---|---|
+   | NODE_ENV | `production` |
+   | DATABASE_URL | Neon **pooled** URL |
+   | CORS_ORIGIN | `https://<project>.vercel.app` (giờ là same-origin, giữ để NODE_ENV=production không throw) |
+   | JWT_ACCESS_SECRET | random ≥32 ký tự — `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"` |
+   | JWT_ACCESS_TTL | `900` |
+   | JWT_REFRESH_TTL | `604800` |
+   | JWT_ISSUER | `pc-store-api` |
+   | JWT_AUDIENCE | `pc-store-web` |
+   | ENCRYPTION_KEY | base64 32 bytes — **giữ đúng key đã dùng**, xoay key = mất dữ liệu mã hoá cũ |
+   | S3_ENDPOINT | `https://<accountid>.r2.cloudflarestorage.com` |
+   | S3_ACCESS_KEY / S3_SECRET_KEY | R2 token (Object Read & Write) |
+   | S3_BUCKET | `electronic-store` |
+   | S3_REGION | `auto` |
+   | S3_ACL | *(để trống)* |
+   | S3_PUBLIC_URL | `https://pub-<hash>.r2.dev` hoặc custom domain |
+   | PAYMENT_PROVIDER | `paypal` |
+   | PAYPAL_CLIENT_ID / PAYPAL_SECRET | từ PayPal sandbox app (mục 4) |
+   | PAYPAL_MODE | `sandbox` |
+   | PAYPAL_RETURN_URL | `https://<project>.vercel.app/api/v1/payments/paypal/return` |
+   | PAYPAL_CANCEL_URL | `https://<project>.vercel.app/checkout` |
+   | PAYPAL_CURRENCY | `USD` |
+   | PAYPAL_USD_RATE | `25000` (VND → USD) |
+   | NEXT_PUBLIC_APP_URL | `https://<project>.vercel.app` (QR xác minh hoá đơn) |
+   | NEXT_PUBLIC_DISABLE_PROXY | `true` (tắt `proxy.ts`) |
+   | NEXT_PUBLIC_API_URL | *(để trống)* → relative `/api` → rewrite |
 
-| Key | Giá trị |
-|---|---|
-| NODE_ENV | `production` |
-| PORT | `3001` |
-| DATABASE_URL | Neon **pooled** URL |
-| CORS_ORIGIN | `https://<frontend>.vercel.app` (thêm nhiều origin, ngăn cách bằng `,`) |
-| JWT_ACCESS_SECRET | random ≥32 ký tự — `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"` |
-| JWT_ACCESS_TTL | `900` |
-| JWT_REFRESH_TTL | `604800` |
-| JWT_ISSUER | `pc-store-api` |
-| JWT_AUDIENCE | `pc-store-web` |
-| ENCRYPTION_KEY | base64 32 bytes — **giữ đúng key đã dùng**, xoay key = mất dữ liệu mã hoá cũ |
-| S3_ENDPOINT | `https://<accountid>.r2.cloudflarestorage.com` |
-| S3_ACCESS_KEY / S3_SECRET_KEY | R2 token (Object Read & Write) |
-| S3_BUCKET | `electronic-store` |
-| S3_REGION | `auto` |
-| S3_PUBLIC_URL | `https://pub-<hash>.r2.dev` hoặc custom domain |
-| PAYMENT_PROVIDER | `paypal` |
-| PAYPAL_CLIENT_ID / PAYPAL_SECRET | từ PayPal sandbox app (mục 4) |
-| PAYPAL_MODE | `sandbox` |
-| PAYPAL_RETURN_URL | `https://<frontend>.vercel.app/api/v1/payments/paypal/return` |
-| PAYPAL_CANCEL_URL | `https://<frontend>.vercel.app/checkout` |
-| PAYPAL_CURRENCY | `USD` |
-| PAYPAL_USD_RATE | `25000` (VND → USD; toàn bộ đơn chuyển đổi theo tỷ giá cố định này — PayPal không hỗ trợ VND) |
-| NEXT_PUBLIC_APP_URL | `https://<frontend>.vercel.app` (dùng cho QR xác minh hoá đơn) |
-| PAYMENT_SECRET / PAYMENT_WEBHOOK_SECRET | tuỳ chọn (stripe/vnpay) — để placeholder cũng được |
+   **KHÔNG được đặt** `BACKEND_URL` (binding sinh ra). `PAYPAL_RETURN_URL` / `CORS_ORIGIN` /
+   `NEXT_PUBLIC_APP_URL` trỏ domain thật — biết domain sau lần deploy đầu ⇒ deploy 2 lần (lần 1 lấy domain, set env, lần 2 hoàn chỉnh).
 
-`backend/render.yaml` là Blueprint tương đương (thay `sync:false` bằng giá trị thật ở dashboard).
+4. Deploy. Domain: `https://<project>.vercel.app`. Frontend gọi backend qua rewrite; server components
+   dùng binding `BACKEND_URL` cho home (ƒ dynamic) và `/invoice/:id`, `/san-pham`.
+
+> Lưu ý build backend: `@nestjs/platform-express`, `argon2`, `pdfkit`, `@aws-sdk/client-s3`, `stripe` đều là
+> runtime dep của Function (bundle Nest ~ tầm <250MB). `prisma` client đã commit trong `src/generated/prisma`,
+> nên Vercel build không cần `prisma generate`; `postinstall` có `prisma skills sync || exit 0` nên không làm vỡ build.
 
 ---
 
 ## 4. PayPal — sandbox app
 
-1. https://developer.paypal.com → Dashboard → Apps → **Create App** (loại Business/Platform).
-2. Copy **Client ID** và **Secret** → `PAYPAL_CLIENT_ID`, `PAYPAL_SECRET`.
-3. Testing: Dashboard → **Sandbox → Accounts** → tạo/lấy 1 buyer account + password để test thanh toán.
+1. https://developer.paypal.com → Apps → **Create App** (Business/Platform).
+2. Copy **Client ID** + **Secret** → `PAYPAL_CLIENT_ID`, `PAYPAL_SECRET`.
+3. **Sandbox → Accounts** → lấy buyer + password để test.
 4. Lưu ý:
-   - VND không phải currency PayPal hỗ trợ ⇒ provider chuyển `total VND / PAYPAL_USD_RATE` (mặc định
-     25.000 VND/$) sang USD, sai lệch ± vài nghìn VND tuỳ tỷ giá thực tế — chỉ dùng cho demo/sandbox.
-   - Thanh toán qua **hosted checkout** (redirect), không nhúng SDK ⇒ CSP không phải nới `paypal.com`.
-   - JWT cookie sống 15 phút; nếu khách chậm hơn thì hit `/auth/refresh` (frontend chưa tự gọi — demo chấp nhận
-     hoặc tăng `JWT_ACCESS_TTL` khi demo).
+   - VND không phải currency PayPal hỗ trợ ⇒ provider chuyển `total VND / PAYPAL_USD_RATE` (mặc định 25.000 VND/$) → USD.
+   - **Hosted checkout** (redirect), không nhúng SDK ⇒ CSP không nới `paypal.com`.
+   - JWT cookie sống 15 phút; khách chậm hơn thì cần refresh token (frontend chưa tự gọi — demo tăng `JWT_ACCESS_TTL`).
 
 ---
 
-## 5. Vercel — frontend
-
-Trong repo đã có `frontend/vercel.json`:
-
-```json
-{
-  "env": { "NEXT_PUBLIC_DISABLE_PROXY": "true", "INTERNAL_API_URL": "https://YOURBACKEND.onrender.com" },
-  "rewrites": [{ "source": "/api/:path*", "destination": "https://YOURBACKEND.onrender.com/api/:path*" }]
-}
-```
-
-1. Vercel → New Project → import repo → **Root Directory: `frontend`**.
-2. **Thay `YOURBACKEND.onrender.com`** bằng Render URL thật trong `vercel.json` (hoặc đặt env dashboard, xoá placeholder ở file).
-3. Framework preset: Next.js (Vercel tự nhận). Build/Start mặc định là chuẩn.
-4. Env (dashboard hoặc để trong `vercel.json`):
-   | Key | Giá trị | Ghi chú |
-   |---|---|---|
-   | NEXT_PUBLIC_DISABLE_PROXY | `true` | tắt `proxy.ts` trên prod; nếu không set, middleware sẽ trỏ sai `127.0.0.1:3001` |
-   | INTERNAL_API_URL | `https://<backend>.onrender.com` | server components gọi thẳng Render (kèm cookie) |
-   | NEXT_PUBLIC_API_URL | *(để trống)* | rỗng ⇒ relative `/api` ⇒ rewrite |
-   | NEXT_PUBLIC_BACKEND_URL | *(để trống)* | KHÔNG đặt — tránh trình duyệt gọi thẳng Render (mất cookie) |
-5. Deploy. Domain mặc định: `https://<project>.vercel.app`.
-
-CSP trên prod giữ `connect-src 'self' https://*.r2.cloudflarestorage.com https://*.r2.dev`
-(cho presigned PUT/GET); `img-src 'self' data: https:`; `proxy.ts` pass-through khi có flag trên.
-
----
-
-## 6. Luồng thanh toán PayPal hoạt động thế nào
-
-1. Checkout → `POST /api/v1/payments/checkout` → provider tạo order PayPal → trả `checkoutUrl` (hosted).
-2. Browser đi sang `sandbox.paypal.com`, login buyer sandbox, Approve.
-3. PayPal redirect GET → `PAYPAL_RETURN_URL?token=<paypalOrderId>` (trên Vercel) → rewrite sang Render →
-   `JwtGuard` (cookie còn hạn) → `capture` → đánh dấu `Payment=SUCCEEDED`, `Order=PAID` → redirect `/checkout/success?orderId=…`.
-4. `/checkout/success` hiển thị + link `/invoice/:orderId` (xem hoá đơn, tải PDF).
-5. PDF/ảnh lưu R2, đường dẫn qua API (không cần bucket public cho download; `S3_PUBLIC_URL` chỉ để link ảnh sản phẩm admin upload).
-
----
-
-## 7. Verify sau khi deploy
+## 5. Verify sau khi deploy
 
 ```pwsh
-# backend
-curl.exe -k -s https://<backend>.onrender.com/api/v1/health
-# ↑ {"status":"ok","database":"connected",...}
-
-# frontend + rewrite
-curl.exe -k -s https://<frontend>.vercel.app/api/v1/health
-curl.exe -k -s -o NUL -w "%{http_code}" https://<frontend>.vercel.app/
+curl.exe -s https://<project>.vercel.app/api/v1/health
+# ↑ {"status":"ok","database":"connected",...} — chạy qua rewrite từ service backend
+curl.exe -s -o NUL -w "%{http_code}" https://<project>.vercel.app/
 ```
 
-Smoke test E2E (giống lần verify local): register → login (lấy cookie) → GET products →
-add cart → POST orders (kèm `x-csrf-token`) → checkout → thanh toán bằng sandbox buyer →
-xác nhận redirect `/checkout/success?orderId=…` và `/invoice/:id` hiển thị.
+Smoke E2E (như verify local): register → login (cookie+CSRF) → GET products → cart → POST orders →
+checkout → sandbox buyer approve → redirect `/checkout/success?orderId=…` → `/invoice/:id` xem/tải PDF.
 
-Check mã hoá field: raw DB (Neon SQL Editor) — `receiverName` của order mới phải là chuỗi `enc:v1:…`;
-nhưng API trả plaintext.
+Check mã hoá field: raw DB (Neon SQL Editor) — `receiverName` order mới phải là `enc:v1:…`; API trả plaintext.
 
 ---
 
-## 8. Lưu ý vận hành
+## 6. Lưu ý vận hành
 
-- **Render free**: service ngủ sau ~15 phút không có request → lần mở lại chậm (~30–60s). Muốn luôn nóng: UptimeRobot/K6 ping
-  `/api/v1/health` mỗi 10 phút, hoặc nâng plan. Cũng giới hạn 750h/month.
-- **Cold start không ảnh hưởng dữ liệu**: Postgres (Neon) và R2 nằm ngoài Render.
-- **Đổi domain**: nếu có custom domain và tách `api.pcstore.com`: không cần rewrite → set `NEXT_PUBLIC_API_URL=https://api.pcstore.com`, `CORS_ORIGIN=https://pcstore.com`, cookie vẫn SameSite=Lax (cùng site `pcstore.com`) — giữ hợp lệ.
-- **Migrate tự động**: start command chạy `prisma migrate deploy` mỗi lần deploy — request POST chỉ bắt đầu sau khi
-  health check OK.
-- **Bảo mật env**: `vercel.json`/`render.yaml` chỉ chứa placeholder/`sync:false`; creds thật đặt ở dashboard.
-- **Promo Trung Thu**: campagne là frontend-only (`frontend/lib/promo.ts`), không đổi gì ở Neon/Render.
+- **Cold start**: backend là NestJS 1 Function — instance nguội khởi tạo DI container (vài giây) sau thời gian im lặng.
+  Dữ liệu ổn định (Neon/R2 bên ngoài). Luôn nóng: ping `/api/v1/health` bằng cron mỗi vài phút.
+- **Migrate thủ công**: Vercel không chạy `prisma migrate deploy` — schema mới phải deploy DB trước khi deploy app.
+- **`vercel dev`**: chạy cả 2 service local cùng lúc, binding `BACKEND_URL` được inject tự động.
+- **Đổi domain**: nếu thêm custom domain, cập nhật `PAYPAL_RETURN_URL`, `CORS_ORIGIN`, `NEXT_PUBLIC_APP_URL`
+  (QR invoice), và CORS nguồn ở R2.
+- **Bảo mật env**: file `vercel.json` chỉ chứa routing/bindings — creds thật đặt ở dashboard Vercel.
+- **Promo Trung Thu**: campagne frontend-only (`frontend/lib/promo.ts`), không đổi gì ở Neon/R2.
