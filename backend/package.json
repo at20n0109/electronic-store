@@ -6,6 +6,12 @@
   "private": true,
   "license": "UNLICENSED",
   "type": "module",
+  "trustedDependencies": [
+    "@prisma/engines",
+    "argon2",
+    "esbuild",
+    "prisma"
+  ],
   "scripts": {
     "build": "nest build",
     "build:vercel": "node scripts/vercel-build.cjs",
