@@ -1,0 +1,16 @@
+# Root-level ignores for the monorepo
+
+# Skill/agent working directories
+/.impeccable/
+
+# Local error/log dumps
+*.err
+*.log
+
+# Local environment files (never commit secrets)
+/.env
+/.env.local
+/env/.env
+
+# TLS certs (private keys must never be committed)
+/nginx/certs/

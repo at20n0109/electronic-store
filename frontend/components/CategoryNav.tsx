@@ -25,7 +25,7 @@ export function CategoryNav({ categories }: { categories: Category[] }) {
           {categories.map((cat) => (
             <Link
               key={cat.id}
-              href={`/?category=${cat.slug}`}
+              href={`/san-pham?category=${cat.slug}`}
               className="flex shrink-0 items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm font-medium text-zinc-600 transition-all hover:border-red-300 hover:bg-red-50 hover:text-red-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:border-red-500 dark:hover:bg-red-600/20 dark:hover:text-red-400"
             >
               <span

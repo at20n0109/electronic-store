@@ -2,6 +2,7 @@
 
 import Image from 'next/image';
 import { useState } from 'react';
+import { PHOTOS, PRODUCT_PHOTOS } from '@/lib/photos';
 
 type Props = {
   slug?: string | null;
@@ -379,41 +380,6 @@ const ART: Record<string, () => React.ReactElement> = {
   monitor: MonitorArt,
   laptop: LaptopArt,
   peripheral: PeripheralArt,
-};
-
-const PHOTOS: Record<string, { src: string; alt: string }> = {
-  cpu: { src: '/images/photos/cpu.jpg', alt: 'CPU' },
-  gpu: { src: '/images/photos/gpu.png', alt: 'VGA - Card đồ họa' },
-  mainboard: { src: '/images/photos/mainboard.jpg', alt: 'Bo mạch chủ' },
-  ram: { src: '/images/photos/ram.png', alt: 'RAM' },
-  storage: { src: '/images/photos/storage.jpg', alt: 'Ổ cứng SSD' },
-  psu: { src: '/images/photos/psu.jpg', alt: 'Nguồn máy tính' },
-  case: { src: '/images/photos/case.jpg', alt: 'Vỏ case' },
-  cooling: { src: '/images/photos/cooling.jpg', alt: 'Tản nhiệt' },
-  monitor: { src: '/images/photos/monitor.jpg', alt: 'Màn hình' },
-  laptop: { src: '/images/photos/laptop.png', alt: 'Laptop' },
-  peripheral: { src: '/images/photos/peripheral.jpg', alt: 'Phụ kiện' },
-};
-
-const PRODUCT_PHOTOS: Record<string, { src: string; alt: string }> = {
-  'cpu-i5-14600kf': { src: '/images/photos/cpu-i5-14600kf.png', alt: 'Intel Core i5-14600KF' },
-  'cpu-r5-7600': { src: '/images/photos/cpu-r5-7600.png', alt: 'AMD Ryzen 5 7600' },
-  'cpu-r7-7800x3d': { src: '/images/photos/cpu-r7-7800x3d.png', alt: 'AMD Ryzen 7 7800X3D' },
-  'ram-kf16g-3200': { src: '/images/photos/ram-kf16g-3200.png', alt: 'Corsair Vengeance LPX 16GB DDR4' },
-  'ram-kf32g-6000': { src: '/images/photos/ram-kf32g-6000.png', alt: 'Kingston Fury Beast DDR5 6000' },
-  'psu-rm850-g': { src: '/images/photos/psu-rm850-g.png', alt: 'Corsair RM850e' },
-  'psu-cm650-w': { src: '/images/photos/psu-cm650-w.png', alt: 'Cooler Master MWE 650W' },
-  'gpu-rx6600-8g': { src: '/images/photos/gpu-rx6600-8g.png', alt: 'ASUS Dual Radeon RX 6600' },
-  'gpu-rtx4060-8g': { src: '/images/photos/gpu-rtx4060-8g.png', alt: 'MSI RTX 4060 Ventus 2X' },
-  'gpu-rtx4070-12g': { src: '/images/photos/gpu-rtx4070-12g.png', alt: 'Gigabyte RTX 4070 Windforce' },
-  'mb-b760-f': { src: '/images/photos/mb-b760-f.png', alt: 'ASUS TUF Gaming B760 PLUS WIFI' },
-  'mb-b650-aorus': { src: '/images/photos/mb-b650-aorus.jpg', alt: 'Gigabyte B650 AORUS ELITE AX' },
-  'case-h510': { src: '/images/photos/case-h510.jpg', alt: 'NZXT H510' },
-  'case-l216': { src: '/images/photos/case-l216.png', alt: 'Lian Li LANCOOL 216' },
-  'cool-ak500': { src: '/images/photos/cool-ak500.png', alt: 'DeepCool AK500 Digital' },
-  'cool-arctic-360': { src: '/images/photos/cool-arctic-360.png', alt: 'Arctic Liquid Freezer III 360' },
-  'ssd-sn770-500g': { src: '/images/photos/ssd-sn770-500g.png', alt: 'WD Blue SN580 500GB' },
-  'ssd-wd850-1tb': { src: '/images/photos/ssd-wd850-1tb.jpg', alt: 'WD Black SN850X 1TB' },
 };
 
 export function PartIllustration({ slug, product, className }: Props) {

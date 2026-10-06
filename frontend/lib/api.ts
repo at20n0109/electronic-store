@@ -6,6 +6,8 @@ import type {
   LoginFields,
   Order,
   PaginatedResponse,
+  PcBuild,
+  PcBuildDetail,
   Product,
   RegisterFields,
 } from './types';
@@ -60,6 +62,16 @@ export async function getProductBySlug(slug: string) {
 
 export async function getCategories() {
   return apiFetch<Category[]>('/api/v1/categories');
+}
+
+export async function getPcBuilds() {
+  return apiFetch<PcBuild[]>('/api/v1/pc-builds');
+}
+
+export async function getPcBuild(slug: string) {
+  return apiFetch<PcBuildDetail>(
+    `/api/v1/pc-builds/${encodeURIComponent(slug)}`,
+  );
 }
 
 export async function register(fields: RegisterFields): Promise<AuthResult> {
@@ -185,6 +197,8 @@ export type ProductQuery = {
   category?: string;
   sort?: 'price_asc' | 'price_desc' | 'name_asc' | 'newest';
   page?: number;
+  minPrice?: number;
+  maxPrice?: number;
 };
 
 export function buildProductQuery(query: ProductQuery): URLSearchParams {
@@ -193,5 +207,11 @@ export function buildProductQuery(query: ProductQuery): URLSearchParams {
   if (query.category) params.set('category', query.category);
   if (query.sort) params.set('sort', query.sort);
   if (query.page && query.page > 1) params.set('page', String(query.page));
+  if (query.minPrice !== undefined) {
+    params.set('minPrice', String(query.minPrice));
+  }
+  if (query.maxPrice !== undefined) {
+    params.set('maxPrice', String(query.maxPrice));
+  }
   return params;
 }

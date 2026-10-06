@@ -3,6 +3,10 @@ import { NextResponse, type NextRequest } from 'next/server';
 const API_TARGET = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://127.0.0.1:3001';
 
 export async function proxy(req: NextRequest) {
+  if (process.env.NEXT_PUBLIC_DISABLE_PROXY === 'true') {
+    return NextResponse.next();
+  }
+
   const { pathname, search } = req.nextUrl;
 
   if (pathname.startsWith('/__nextjs')) {

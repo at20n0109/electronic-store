@@ -40,6 +40,13 @@ export interface PaymentProvider {
     params: Record<string, string>,
     order: OrderForPayment,
   ): Promise<boolean>;
+  capture?(
+    token: string,
+  ): Promise<{
+    succeeded: boolean;
+    orderId?: string;
+    transactionId?: string;
+  }>;
 }
 
 export function ipFromRequest(req: Request): string {

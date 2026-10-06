@@ -402,6 +402,8 @@ export const ModelName = {
   Category: 'Category',
   Product: 'Product',
   ProductImage: 'ProductImage',
+  PcBuild: 'PcBuild',
+  PcBuildItem: 'PcBuildItem',
   Cart: 'Cart',
   CartItem: 'CartItem',
   Order: 'Order',
@@ -423,7 +425,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "user" | "refreshToken" | "category" | "product" | "productImage" | "cart" | "cartItem" | "order" | "payment" | "invoice" | "orderItem"
+    modelProps: "user" | "refreshToken" | "category" | "product" | "productImage" | "pcBuild" | "pcBuildItem" | "cart" | "cartItem" | "order" | "payment" | "invoice" | "orderItem"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -794,6 +796,154 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         count: {
           args: Prisma.ProductImageCountArgs<ExtArgs>
           result: runtime.Types.Utils.Optional<Prisma.ProductImageCountAggregateOutputType> | number
+        }
+      }
+    }
+    PcBuild: {
+      payload: Prisma.$PcBuildPayload<ExtArgs>
+      fields: Prisma.PcBuildFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.PcBuildFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PcBuildPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.PcBuildFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PcBuildPayload>
+        }
+        findFirst: {
+          args: Prisma.PcBuildFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PcBuildPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.PcBuildFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PcBuildPayload>
+        }
+        findMany: {
+          args: Prisma.PcBuildFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PcBuildPayload>[]
+        }
+        create: {
+          args: Prisma.PcBuildCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PcBuildPayload>
+        }
+        createMany: {
+          args: Prisma.PcBuildCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.PcBuildCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PcBuildPayload>[]
+        }
+        delete: {
+          args: Prisma.PcBuildDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PcBuildPayload>
+        }
+        update: {
+          args: Prisma.PcBuildUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PcBuildPayload>
+        }
+        deleteMany: {
+          args: Prisma.PcBuildDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.PcBuildUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.PcBuildUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PcBuildPayload>[]
+        }
+        upsert: {
+          args: Prisma.PcBuildUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PcBuildPayload>
+        }
+        aggregate: {
+          args: Prisma.PcBuildAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregatePcBuild>
+        }
+        groupBy: {
+          args: Prisma.PcBuildGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.PcBuildGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.PcBuildCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.PcBuildCountAggregateOutputType> | number
+        }
+      }
+    }
+    PcBuildItem: {
+      payload: Prisma.$PcBuildItemPayload<ExtArgs>
+      fields: Prisma.PcBuildItemFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.PcBuildItemFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PcBuildItemPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.PcBuildItemFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PcBuildItemPayload>
+        }
+        findFirst: {
+          args: Prisma.PcBuildItemFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PcBuildItemPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.PcBuildItemFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PcBuildItemPayload>
+        }
+        findMany: {
+          args: Prisma.PcBuildItemFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PcBuildItemPayload>[]
+        }
+        create: {
+          args: Prisma.PcBuildItemCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PcBuildItemPayload>
+        }
+        createMany: {
+          args: Prisma.PcBuildItemCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.PcBuildItemCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PcBuildItemPayload>[]
+        }
+        delete: {
+          args: Prisma.PcBuildItemDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PcBuildItemPayload>
+        }
+        update: {
+          args: Prisma.PcBuildItemUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PcBuildItemPayload>
+        }
+        deleteMany: {
+          args: Prisma.PcBuildItemDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.PcBuildItemUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.PcBuildItemUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PcBuildItemPayload>[]
+        }
+        upsert: {
+          args: Prisma.PcBuildItemUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PcBuildItemPayload>
+        }
+        aggregate: {
+          args: Prisma.PcBuildItemAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregatePcBuildItem>
+        }
+        groupBy: {
+          args: Prisma.PcBuildItemGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.PcBuildItemGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.PcBuildItemCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.PcBuildItemCountAggregateOutputType> | number
         }
       }
     }
@@ -1325,6 +1475,7 @@ export const ProductScalarFieldEnum = {
   name: 'name',
   slug: 'slug',
   description: 'description',
+  specs: 'specs',
   price: 'price',
   stock: 'stock',
   status: 'status',
@@ -1348,6 +1499,33 @@ export const ProductImageScalarFieldEnum = {
 } as const
 
 export type ProductImageScalarFieldEnum = (typeof ProductImageScalarFieldEnum)[keyof typeof ProductImageScalarFieldEnum]
+
+
+export const PcBuildScalarFieldEnum = {
+  id: 'id',
+  slug: 'slug',
+  name: 'name',
+  tagline: 'tagline',
+  description: 'description',
+  budget: 'budget',
+  tier: 'tier',
+  sortOrder: 'sortOrder',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type PcBuildScalarFieldEnum = (typeof PcBuildScalarFieldEnum)[keyof typeof PcBuildScalarFieldEnum]
+
+
+export const PcBuildItemScalarFieldEnum = {
+  id: 'id',
+  buildId: 'buildId',
+  productId: 'productId',
+  slot: 'slot',
+  sortOrder: 'sortOrder'
+} as const
+
+export type PcBuildItemScalarFieldEnum = (typeof PcBuildItemScalarFieldEnum)[keyof typeof PcBuildItemScalarFieldEnum]
 
 
 export const CartScalarFieldEnum = {
@@ -1529,6 +1707,20 @@ export type ListDateTimeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaM
 
 
 /**
+ * Reference to a field of type 'Json'
+ */
+export type JsonFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Json'>
+    
+
+
+/**
+ * Reference to a field of type 'QueryMode'
+ */
+export type EnumQueryModeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'QueryMode'>
+    
+
+
+/**
  * Reference to a field of type 'Decimal'
  */
 export type DecimalFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Decimal'>
@@ -1609,20 +1801,6 @@ export type EnumPaymentStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$Pr
  * Reference to a field of type 'PaymentStatus[]'
  */
 export type ListEnumPaymentStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'PaymentStatus[]'>
-    
-
-
-/**
- * Reference to a field of type 'Json'
- */
-export type JsonFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Json'>
-    
-
-
-/**
- * Reference to a field of type 'QueryMode'
- */
-export type EnumQueryModeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'QueryMode'>
     
 
 
@@ -1795,6 +1973,8 @@ export type GlobalOmitConfig = {
   category?: Prisma.CategoryOmit
   product?: Prisma.ProductOmit
   productImage?: Prisma.ProductImageOmit
+  pcBuild?: Prisma.PcBuildOmit
+  pcBuildItem?: Prisma.PcBuildItemOmit
   cart?: Prisma.CartOmit
   cartItem?: Prisma.CartItemOmit
   order?: Prisma.OrderOmit

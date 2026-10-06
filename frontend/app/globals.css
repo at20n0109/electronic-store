@@ -68,8 +68,21 @@ body {
   font-family: var(--font-sans);
 }
 
+::selection {
+  background-color: var(--primary);
+  color: #ffffff;
+}
+
 .font-heading {
   font-family: var(--font-heading);
+}
+
+.font-display {
+  font-family: "Saira Variable", "Saira", sans-serif;
+}
+
+.font-data {
+  font-family: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
 }
 
 @media (prefers-reduced-motion: reduce) {

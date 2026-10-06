@@ -1,8 +1,8 @@
-import { Body, Controller, Get, Headers, HttpCode, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpCode, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { PaymentsService } from './payments.service.js';
 import { CheckoutDto } from './dto/checkout.dto.js';
 import { JwtGuard } from '../auth/guards/jwt-auth.guard.js';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 
 @Controller('payments')
 export class PaymentsController {
@@ -20,6 +20,18 @@ export class PaymentsController {
   vnpayReturn(@Query() query: Record<string, string>, @Req() req: Request) {
     const user = (req as unknown as { user: { id: string } }).user;
     return this.payments.handleVnpayReturn(user.id, query);
+  }
+
+  @Get('paypal/return')
+  @UseGuards(JwtGuard)
+  async paypalReturn(
+    @Query('token') token: string,
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
+    const user = (req as unknown as { user: { id: string } }).user;
+    const result = await this.payments.handlePaypalReturn(user.id, token);
+    res.redirect(result.returnUrl);
   }
 
   @Post('webhook')

@@ -3,6 +3,7 @@ import {
   IsInt,
   IsNotEmpty,
   IsNumber,
+  IsObject,
   IsOptional,
   IsString,
   IsUrl,
@@ -40,6 +41,10 @@ export class CreateProductDto {
   @IsOptional()
   @MaxLength(10000)
   description?: string;
+
+  @IsObject()
+  @IsOptional()
+  specs?: Record<string, string>;
 
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)

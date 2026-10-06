@@ -5,16 +5,28 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CartService } from '../cart/cart.service.js';
+import { CryptoService } from '../crypto/crypto.service.js';
 import type { CreateOrderDto } from './dto/create-order.dto.js';
 
 const FREE_SHIPPING_MIN = 300000;
 const SHIPPING_FEE = 30000;
+
+interface OrderRecord {
+  receiverName: string;
+  receiverPhone: string;
+  receiverAddress: string;
+  note: string | null;
+  subtotal: unknown;
+  shipping: unknown;
+  total: unknown;
+}
 
 @Injectable()
 export class OrderService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cart: CartService,
+    private readonly crypto: CryptoService,
   ) {}
 
   async create(userId: string, dto: CreateOrderDto) {
@@ -67,10 +79,10 @@ export class OrderService {
           subtotal,
           shipping,
           total,
-          receiverName: dto.receiverName,
-          receiverPhone: dto.receiverPhone,
-          receiverAddress: dto.receiverAddress,
-          note: dto.note ?? null,
+          receiverName: this.crypto.encrypt(dto.receiverName),
+          receiverPhone: this.crypto.encrypt(dto.receiverPhone),
+          receiverAddress: this.crypto.encrypt(dto.receiverAddress),
+          note: dto.note ? this.crypto.encrypt(dto.note) : null,
           items: { create: lineItems },
         },
         include: { items: { include: { product: true } } },
@@ -80,7 +92,7 @@ export class OrderService {
         where: { cart: { userId } },
       });
 
-      return created;
+      return this.toView(created);
     });
   }
 
@@ -91,12 +103,7 @@ export class OrderService {
       orderBy: { createdAt: 'desc' },
     });
 
-    return orders.map((o) => ({
-      ...o,
-      subtotal: Number(o.subtotal),
-      shipping: Number(o.shipping),
-      total: Number(o.total),
-    }));
+    return orders.map((o) => this.toView(o));
   }
 
   async myOrder(userId: string, orderId: string) {
@@ -109,8 +116,16 @@ export class OrderService {
       throw new NotFoundException('Order not found');
     }
 
+    return this.toView(order);
+  }
+
+  private toView(order: OrderRecord) {
     return {
       ...order,
+      receiverName: this.crypto.decrypt(order.receiverName),
+      receiverPhone: this.crypto.decrypt(order.receiverPhone),
+      receiverAddress: this.crypto.decrypt(order.receiverAddress),
+      note: this.crypto.decrypt(order.note),
       subtotal: Number(order.subtotal),
       shipping: Number(order.shipping),
       total: Number(order.total),

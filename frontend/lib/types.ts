@@ -16,12 +16,15 @@ export type ProductImage = {
   sortOrder: number;
 };
 
+export type ProductSpecs = Record<string, string>;
+
 export type Product = {
   id: string;
   sku: string;
   name: string;
   slug: string;
   description: string | null;
+  specs: ProductSpecs | null;
   price: number;
   stock: number;
   status: 'ACTIVE' | 'DRAFT' | 'HIDDEN';
@@ -29,6 +32,40 @@ export type Product = {
   images: ProductImage[];
   createdAt: string;
   updatedAt: string;
+};
+
+export type PcBuildSlot =
+  | 'cpu'
+  | 'gpu'
+  | 'mainboard'
+  | 'ram'
+  | 'storage'
+  | 'psu'
+  | 'case'
+  | 'cooling';
+
+export type PcBuildItem = {
+  slot: PcBuildSlot;
+  sortOrder: number;
+  product: Product;
+};
+
+export type PcBuild = {
+  id: string;
+  slug: string;
+  name: string;
+  tagline: string;
+  description: string | null;
+  budget: number;
+  tier: number;
+  sortOrder: number;
+  total: number;
+  remaining: number;
+  items: PcBuildItem[];
+};
+
+export type PcBuildDetail = PcBuild & {
+  alternatives: Partial<Record<string, Product[]>>;
 };
 
 export type PaginatedResponse<T> = {

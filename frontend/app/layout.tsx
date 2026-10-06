@@ -1,7 +1,10 @@
 import Link from "next/link";
 import "./globals.css";
+import "@fontsource-variable/saira";
+import "@fontsource-variable/jetbrains-mono";
 import { CartProvider } from "@/context/CartContext";
 import { CartDrawer, CartToggle } from "@/components/CartDrawer";
+import { MidAutumnPromo } from "@/components/promo/MidAutumnBanner";
 
 export const metadata = {
   title: "PC Store - Linh kiện máy tính",
@@ -58,7 +61,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               PC<span className="text-red-500">Store</span>
             </Link>
             <form
-              action="/"
+              action="/san-pham"
               className="hidden h-11 flex-1 items-center overflow-hidden rounded-lg bg-zinc-800 ring-1 ring-zinc-700 focus-within:ring-2 focus-within:ring-red-500 md:flex"
             >
               <input
@@ -77,19 +80,19 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             </form>
             <nav className="hidden items-center gap-5 text-sm font-medium lg:flex">
               <Link
-                href="/?category=cpu"
+                href="/pc-builds"
                 className="text-zinc-300 transition-colors hover:text-red-400"
               >
                 Build PC
               </Link>
               <Link
-                href="/?category=laptop"
+                href="/san-pham?category=laptop"
                 className="text-zinc-300 transition-colors hover:text-red-400"
               >
                 Laptop
               </Link>
               <Link
-                href="/?category=monitor"
+                href="/san-pham?category=monitor"
                 className="text-zinc-300 transition-colors hover:text-red-400"
               >
                 Màn hình
@@ -115,29 +118,31 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           </div>
         </header>
 
+        <MidAutumnPromo />
+
         <div className="border-b border-zinc-200 bg-zinc-950 dark:border-zinc-800">
           <div className="mx-auto flex h-10 max-w-7xl items-center gap-4 overflow-x-auto px-4 text-xs font-semibold uppercase tracking-wide text-zinc-300">
-            <Link href="/?category=cpu" className="shrink-0 hover:text-red-400">CPU</Link>
+            <Link href="/san-pham?category=cpu" className="shrink-0 hover:text-red-400">CPU</Link>
             <span className="text-zinc-300 dark:text-zinc-700">|</span>
-            <Link href="/?category=gpu" className="shrink-0 hover:text-red-500">GPU</Link>
+            <Link href="/san-pham?category=gpu" className="shrink-0 hover:text-red-500">GPU</Link>
             <span className="text-zinc-300 dark:text-zinc-700">|</span>
-            <Link href="/?category=mainboard" className="shrink-0 hover:text-red-500">Mainboard</Link>
+            <Link href="/san-pham?category=mainboard" className="shrink-0 hover:text-red-500">Mainboard</Link>
             <span className="text-zinc-300 dark:text-zinc-700">|</span>
-            <Link href="/?category=ram" className="shrink-0 hover:text-red-500">RAM</Link>
+            <Link href="/san-pham?category=ram" className="shrink-0 hover:text-red-500">RAM</Link>
             <span className="text-zinc-300 dark:text-zinc-700">|</span>
-            <Link href="/?category=storage" className="shrink-0 hover:text-red-500">Ổ cứng</Link>
+            <Link href="/san-pham?category=storage" className="shrink-0 hover:text-red-500">Ổ cứng</Link>
             <span className="text-zinc-300 dark:text-zinc-700">|</span>
-            <Link href="/?category=psu" className="shrink-0 hover:text-red-500">Nguồn</Link>
+            <Link href="/san-pham?category=psu" className="shrink-0 hover:text-red-500">Nguồn</Link>
             <span className="text-zinc-300 dark:text-zinc-700">|</span>
-            <Link href="/?category=case" className="shrink-0 hover:text-red-500">Vỏ máy</Link>
+            <Link href="/san-pham?category=case" className="shrink-0 hover:text-red-500">Vỏ máy</Link>
             <span className="text-zinc-300 dark:text-zinc-700">|</span>
-            <Link href="/?category=cooling" className="shrink-0 hover:text-red-500">Tản nhiệt</Link>
+            <Link href="/san-pham?category=cooling" className="shrink-0 hover:text-red-500">Tản nhiệt</Link>
             <span className="text-zinc-300 dark:text-zinc-700">|</span>
-            <Link href="/?category=monitor" className="shrink-0 hover:text-red-500">Màn hình</Link>
+            <Link href="/san-pham?category=monitor" className="shrink-0 hover:text-red-500">Màn hình</Link>
             <span className="text-zinc-300 dark:text-zinc-700">|</span>
-            <Link href="/?category=laptop" className="shrink-0 hover:text-red-500">Laptop</Link>
+            <Link href="/san-pham?category=laptop" className="shrink-0 hover:text-red-500">Laptop</Link>
             <span className="text-zinc-300 dark:text-zinc-700">|</span>
-            <Link href="/?category=peripheral" className="shrink-0 hover:text-red-500">Phụ kiện</Link>
+            <Link href="/san-pham?category=peripheral" className="shrink-0 hover:text-red-500">Phụ kiện</Link>
           </div>
         </div>
 
@@ -167,11 +172,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               <div>
                 <h3 className="mb-3 text-sm font-semibold text-zinc-900 dark:text-zinc-50">Danh mục</h3>
                 <ul className="space-y-2 text-sm text-zinc-500 dark:text-zinc-400">
-                  <li><Link href="/?category=cpu" className="hover:text-red-500">CPU</Link></li>
-                  <li><Link href="/?category=gpu" className="hover:text-red-500">GPU</Link></li>
-                  <li><Link href="/?category=mainboard" className="hover:text-red-500">Mainboard</Link></li>
-                  <li><Link href="/?category=ram" className="hover:text-red-500">RAM</Link></li>
-                  <li><Link href="/?category=storage" className="hover:text-red-500">Ổ cứng</Link></li>
+                  <li><Link href="/san-pham?category=cpu" className="hover:text-red-500">CPU</Link></li>
+                  <li><Link href="/san-pham?category=gpu" className="hover:text-red-500">GPU</Link></li>
+                  <li><Link href="/san-pham?category=mainboard" className="hover:text-red-500">Mainboard</Link></li>
+                  <li><Link href="/san-pham?category=ram" className="hover:text-red-500">RAM</Link></li>
+                  <li><Link href="/san-pham?category=storage" className="hover:text-red-500">Ổ cứng</Link></li>
                 </ul>
               </div>
               <div>
@@ -180,7 +185,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
                   <li><Link href="/" className="hover:text-red-500">Hướng dẫn mua hàng</Link></li>
                   <li><Link href="/" className="hover:text-red-500">Chính sách bảo hành</Link></li>
                   <li><Link href="/" className="hover:text-red-500">Đổi trả hàng</Link></li>
-                  <li><Link href="/" className="hover:text-red-500">Tư vấn Build PC</Link></li>
+                  <li><Link href="/pc-builds" className="hover:text-red-500">Tư vấn Build PC</Link></li>
                 </ul>
               </div>
               <div>

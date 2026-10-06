@@ -8,6 +8,7 @@ import type { Request } from 'express';
 import { PaymentProvider, PaymentStatus } from '../generated/prisma/enums.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { MockPaymentProvider } from './providers/mock.provider.js';
+import { PaypalPaymentProvider } from './providers/paypal.provider.js';
 import { StripePaymentProvider } from './providers/stripe.provider.js';
 import { VnpayPaymentProvider } from './providers/vnpay.provider.js';
 import type {
@@ -66,6 +67,8 @@ export class PaymentsService {
     const get = (key: string) => this.config.get<string>(key);
 
     switch (chosen) {
+      case 'paypal':
+        return new PaypalPaymentProvider(get);
       case 'stripe':
         return new StripePaymentProvider(get);
       case 'vnpay':
@@ -171,6 +174,48 @@ export class PaymentsService {
       status: order.status,
       responseCode,
       returnUrl: this.appUrl ? `${this.appUrl}/checkout/success?orderId=${order.id}` : null,
+    };
+  }
+
+  async handlePaypalReturn(userId: string, payPalOrderId: string) {
+    if (typeof this.provider.capture !== 'function') {
+      throw new BadRequestException(
+        'Payment provider does not support PayPal return',
+      );
+    }
+
+    const result = await this.provider.capture(payPalOrderId);
+    if (!result.succeeded || !result.orderId) {
+      throw new BadRequestException('Payment was not completed');
+    }
+
+    const order = await this.prisma.order.findUnique({
+      where: { id: result.orderId, userId },
+      include: { payment: true },
+    });
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    if (order.payment) {
+      await this.prisma.payment.update({
+        where: { id: order.payment.id },
+        data: {
+          status: PaymentStatus.SUCCEEDED,
+          transactionId: result.transactionId,
+        },
+      });
+    }
+    await this.prisma.order.update({
+      where: { id: order.id },
+      data: { status: 'PAID', paidAt: new Date() },
+    });
+
+    return {
+      orderId: order.id,
+      returnUrl: this.appUrl
+        ? `${this.appUrl}/checkout/success?orderId=${order.id}`
+        : `/checkout/success?orderId=${order.id}`,
     };
   }
 

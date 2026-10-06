@@ -67,6 +67,16 @@ export type Product = Prisma.ProductModel
  */
 export type ProductImage = Prisma.ProductImageModel
 /**
+ * Model PcBuild
+ * 
+ */
+export type PcBuild = Prisma.PcBuildModel
+/**
+ * Model PcBuildItem
+ * 
+ */
+export type PcBuildItem = Prisma.PcBuildItemModel
+/**
  * Model Cart
  * 
  */

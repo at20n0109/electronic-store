@@ -11,6 +11,7 @@ import QRCode from 'qrcode';
 import { PassThrough } from 'node:stream';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { UploadsService } from '../uploads/uploads.service.js';
+import { CryptoService } from '../crypto/crypto.service.js';
 
 const FREE_SHIPPING_MIN = 300000;
 const SHIPPING_FEE = 30000;
@@ -40,6 +41,7 @@ export class InvoicesService {
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
     private readonly uploads: UploadsService,
+    private readonly crypto: CryptoService,
   ) {
     this.appUrl = this.config.get<string>('NEXT_PUBLIC_APP_URL') ?? '';
   }
@@ -164,9 +166,9 @@ export class InvoicesService {
     doc.fontSize(11).text('Khách hàng', { align: 'left' });
     doc
       .fontSize(10)
-      .text(`${order.receiverName ?? ''}`)
-      .text(`SĐT: ${order.receiverPhone ?? ''}`)
-      .text(`Địa chỉ: ${order.receiverAddress ?? ''}`);
+      .text(`${this.crypto.decrypt(order.receiverName) ?? ''}`)
+      .text(`SĐT: ${this.crypto.decrypt(order.receiverPhone) ?? ''}`)
+      .text(`Địa chỉ: ${this.crypto.decrypt(order.receiverAddress) ?? ''}`);
 
     doc.moveDown(2);
     const tableTop = doc.y;

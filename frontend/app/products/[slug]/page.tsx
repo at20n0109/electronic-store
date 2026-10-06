@@ -93,6 +93,7 @@ export default async function ProductDetailPage({
   }
 
   const inStock = product.stock > 0;
+  const specEntries = product.specs ? Object.entries(product.specs) : [];
 
   return (
     <div className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 md:py-10">
@@ -105,7 +106,7 @@ export default async function ProductDetailPage({
         {product.category ? (
           <>
             <Link
-              href={`/?category=${product.category.slug}`}
+              href={`/san-pham?category=${product.category.slug}`}
               className="transition-colors hover:text-red-600 dark:hover:text-red-600"
             >
               {product.category.name}
@@ -124,20 +125,6 @@ export default async function ProductDetailPage({
               product={product.slug}
               className="aspect-[16/10] w-full transition-transform duration-300 hover:scale-[1.01]"
             />
-          </div>
-          <div className="mt-3 flex gap-3">
-            {[1, 2, 3].map((i) => (
-              <div
-                key={i}
-                className={`flex h-16 w-16 cursor-pointer items-center justify-center overflow-hidden rounded-lg border-2 ${i === 1 ? 'border-red-600' : 'border-transparent'} bg-zinc-900 transition-colors hover:border-red-600`}
-              >
-                {i === 1 ? (
-                  <PartIllustration slug={product.category?.slug} product={product.slug} className="h-full w-full" />
-                ) : (
-                  <span className="text-sm font-bold text-zinc-500">{i}</span>
-                )}
-              </div>
-            ))}
           </div>
         </div>
 
@@ -237,25 +224,34 @@ export default async function ProductDetailPage({
           <div className={`rounded-xl border border-zinc-100 ${specGradient(product.category?.slug)}`}>
             <table className="w-full text-sm">
               <tbody>
-                <tr className="border-b border-zinc-100 dark:border-zinc-800">
-                  <td className="px-4 py-3 font-medium text-zinc-500 dark:text-zinc-400">Thương hiệu</td>
-                  <td className="px-4 py-3 text-zinc-900 dark:text-zinc-50">{product.name.split(' ').slice(0, 2).join(' ')}</td>
-                </tr>
+                {specEntries.length > 0 ? (
+                  specEntries.map(([label, value]) => (
+                    <tr key={label} className="border-b border-zinc-100 dark:border-zinc-800">
+                      <td className="px-4 py-3 font-medium text-zinc-500 dark:text-zinc-400">{label}</td>
+                      <td className="px-4 py-3 text-right text-zinc-900 dark:text-zinc-50">{value}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr className="border-b border-zinc-100 dark:border-zinc-800">
+                    <td className="px-4 py-3 font-medium text-zinc-500 dark:text-zinc-400">Thương hiệu</td>
+                    <td className="px-4 py-3 text-right text-zinc-900 dark:text-zinc-50">{product.name.split(' ').slice(0, 2).join(' ')}</td>
+                  </tr>
+                )}
                 <tr className="border-b border-zinc-100 dark:border-zinc-800">
                   <td className="px-4 py-3 font-medium text-zinc-500 dark:text-zinc-400">Mã SKU</td>
-                  <td className="px-4 py-3 font-mono text-zinc-900 dark:text-zinc-50">{product.sku}</td>
+                  <td className="px-4 py-3 text-right font-mono text-zinc-900 dark:text-zinc-50">{product.sku}</td>
                 </tr>
                 <tr className="border-b border-zinc-100 dark:border-zinc-800">
                   <td className="px-4 py-3 font-medium text-zinc-500 dark:text-zinc-400">Tình trạng</td>
-                  <td className="px-4 py-3 text-zinc-900 dark:text-zinc-50">{product.status}</td>
+                  <td className="px-4 py-3 text-right text-zinc-900 dark:text-zinc-50">{product.status}</td>
                 </tr>
                 <tr className="border-b border-zinc-100 dark:border-zinc-800">
                   <td className="px-4 py-3 font-medium text-zinc-500 dark:text-zinc-400">Số lượng kho</td>
-                  <td className="px-4 py-3 text-zinc-900 dark:text-zinc-50">{product.stock}</td>
+                  <td className="px-4 py-3 text-right text-zinc-900 dark:text-zinc-50">{product.stock}</td>
                 </tr>
                 <tr>
                   <td className="px-4 py-3 font-medium text-zinc-500 dark:text-zinc-400">Ngày cập nhật</td>
-                  <td className="px-4 py-3 text-zinc-900 dark:text-zinc-50">{new Date(product.updatedAt).toLocaleDateString('vi-VN')}</td>
+                  <td className="px-4 py-3 text-right text-zinc-900 dark:text-zinc-50">{new Date(product.updatedAt).toLocaleDateString('vi-VN')}</td>
                 </tr>
               </tbody>
             </table>
@@ -270,7 +266,7 @@ export default async function ProductDetailPage({
             Danh sách sản phẩm cùng danh mục sẽ được hiển thị tại đây khi có dữ liệu.
           </p>
           <Link
-            href={`/?category=${product.category?.slug ?? ''}`}
+            href={`/san-pham?category=${product.category?.slug ?? ''}`}
             className="mt-4 inline-flex h-10 items-center rounded-xl bg-red-600 px-4 text-sm font-medium text-red-600 transition-colors hover:bg-red-600 dark:text-red-600 dark:hover:bg-red-600/30"
           >
             Xem tất cả
