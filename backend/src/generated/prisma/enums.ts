@@ -40,7 +40,10 @@ export const PaymentProvider = {
   STRIPE: 'STRIPE',
   VNPAY: 'VNPAY',
   MOMO: 'MOMO',
+  ZALOPAY: 'ZALOPAY',
   PAYPAL: 'PAYPAL',
+  BANK: 'BANK',
+  COD: 'COD',
   MOCK: 'MOCK'
 } as const
 

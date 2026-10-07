@@ -158,6 +158,16 @@ export async function addToCart(
   });
 }
 
+export async function addToCartBulk(
+  items: { productId: string; quantity?: number }[],
+): Promise<Cart> {
+  return apiFetch<Cart>('/api/v1/cart/items/bulk', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ items }),
+  });
+}
+
 export async function updateCartItem(
   itemId: string,
   quantity: number,
@@ -209,10 +219,27 @@ export interface PaymentMethod {
   provider: string;
   label: string;
   enabled: boolean;
+  details?: Record<string, unknown>;
+}
+
+export interface VnpayReturnResult {
+  orderId: string;
+  status: string;
+  responseCode: string;
+  returnUrl: string | null;
 }
 
 export async function getPaymentMethods(): Promise<PaymentMethod[]> {
   return apiFetch<PaymentMethod[]>('/api/v1/payments/methods');
+}
+
+export async function getVnpayReturn(
+  params: Record<string, string>,
+): Promise<VnpayReturnResult> {
+  const query = new URLSearchParams(params).toString();
+  return apiFetch<VnpayReturnResult>(`/api/v1/payments/return?${query}`, {
+    cache: 'no-store',
+  });
 }
 
 export async function getMyOrders(): Promise<Order[]> {

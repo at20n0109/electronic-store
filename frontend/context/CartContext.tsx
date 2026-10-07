@@ -11,6 +11,7 @@ import {
 import type { Cart } from '@/lib/types';
 import {
   addToCart,
+  addToCartBulk,
   clearCart,
   getAccessToken,
   getCart,
@@ -27,6 +28,7 @@ export interface CartContextValue {
   closeCart: () => void;
   refresh: () => Promise<void>;
   addItem: (productId: string, quantity?: number) => Promise<void>;
+  addItems: (productIds: string[]) => Promise<void>;
   updateItem: (itemId: string, quantity: number) => Promise<void>;
   removeItem: (itemId: string) => Promise<void>;
   clear: () => Promise<void>;
@@ -84,6 +86,23 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const addItems = useCallback(async (productIds: string[]) => {
+    setError(null);
+    try {
+      const next = await addToCartBulk(productIds.map((productId) => ({ productId })));
+      setCart(next);
+    } catch (err) {
+      const raw = err instanceof Error ? err.message : '';
+      setError(
+        raw.includes('401') && raw.includes('/api/v1/cart')
+          ? 'Bạn cần đăng nhập để thêm sản phẩm vào giỏ hàng.'
+          : raw || 'Không thể thêm sản phẩm vào giỏ hàng.',
+      );
+    } finally {
+      setOpen(true);
+    }
+  }, []);
+
   const updateItem = useCallback(
     async (itemId: string, quantity: number) => {
       setError(null);
@@ -117,6 +136,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     },
     refresh,
     addItem,
+    addItems,
     updateItem,
     removeItem,
     clear,

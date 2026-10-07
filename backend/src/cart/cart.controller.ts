@@ -12,6 +12,7 @@ import {
 import type { Request } from 'express';
 import { CartService } from './cart.service.js';
 import { AddCartItemDto } from './dto/add-cart-item.dto.js';
+import { AddCartItemsDto } from './dto/add-cart-items.dto.js';
 import { UpdateCartItemDto } from './dto/update-cart-item.dto.js';
 import { JwtGuard } from '../auth/guards/jwt-auth.guard.js';
 import { CsrfGuard } from '../common/guards/csrf.guard.js';
@@ -25,6 +26,13 @@ export class CartController {
   async getCart(@Req() req: Request) {
     const user = (req as any).user;
     return this.cart.getCart(user.id);
+  }
+
+  @Post('items/bulk')
+  @UseGuards(CsrfGuard)
+  async addItems(@Req() req: Request, @Body() dto: AddCartItemsDto) {
+    const user = (req as any).user;
+    return this.cart.addItems(user.id, dto);
   }
 
   @Post('items')

@@ -59,7 +59,7 @@ function compareKeys(current: Product, alt: Product): string[] {
 }
 
 export function PcBuildConfigurator({ build }: { build: PcBuildDetail }) {
-  const { addItem } = useCart();
+  const { addItems } = useCart();
 
   const defaults = useMemo(
     () =>
@@ -124,22 +124,18 @@ export function PcBuildConfigurator({ build }: { build: PcBuildDetail }) {
   async function addAll() {
     setAdding(true);
     setAddMsg(null);
-    let added = 0;
-    let skipped = 0;
-    for (const item of items) {
-      if (item.product.stock <= 0) {
-        skipped += 1;
-        continue;
-      }
-      await addItem(item.product.id);
-      added += 1;
+    const inStock = items.filter((item) => item.product.stock > 0);
+    const skipped = items.length - inStock.length;
+    try {
+      await addItems(inStock.map((item) => item.product.id));
+      setAddMsg(
+        `Đã thêm ${inStock.length} linh kiện vào giỏ hàng${
+          skipped > 0 ? ` (bỏ qua ${skipped} món hết hàng)` : ''
+        }.`,
+      );
+    } finally {
+      setAdding(false);
     }
-    setAdding(false);
-    setAddMsg(
-      `Đã thêm ${added} linh kiện vào giỏ hàng${
-        skipped > 0 ? ` (bỏ qua ${skipped} món hết hàng)` : ''
-      }.`,
-    );
   }
 
   return (

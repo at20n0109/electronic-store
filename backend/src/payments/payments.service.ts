@@ -7,11 +7,17 @@ import { ConfigService } from '@nestjs/config';
 import type { Request } from 'express';
 import { PaymentProvider, PaymentStatus } from '../generated/prisma/enums.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { BankTransferProvider } from './providers/bank.provider.js';
+import { CodPaymentProvider } from './providers/cod.provider.js';
 import { MockPaymentProvider } from './providers/mock.provider.js';
 import { MomoPaymentProvider } from './providers/momo.provider.js';
 import { PaypalPaymentProvider } from './providers/paypal.provider.js';
 import { StripePaymentProvider } from './providers/stripe.provider.js';
-import { VnpayPaymentProvider } from './providers/vnpay.provider.js';
+import {
+  VnpayPaymentProvider,
+  vnpayOrderIdFromTxnRef,
+} from './providers/vnpay.provider.js';
+import { ZalopayPaymentProvider } from './providers/zalopay.provider.js';
 import type {
   OrderForPayment,
   OrderLineItem,
@@ -22,8 +28,22 @@ const PROVIDER_LABELS: Record<string, string> = {
   mock: 'Thanh toán thử (demo)',
   paypal: 'PayPal',
   momo: 'Ví MoMo',
+  zalopay: 'ZaloPay',
   vnpay: 'VNPay',
   stripe: 'Thẻ (Stripe)',
+  bank: 'Chuyển khoản ngân hàng',
+  cod: 'Thanh toán khi nhận hàng (COD)',
+};
+
+const PROVIDER_ORDER: Record<string, number> = {
+  momo: 0,
+  zalopay: 1,
+  paypal: 2,
+  vnpay: 3,
+  stripe: 4,
+  bank: 5,
+  cod: 6,
+  mock: 7,
 };
 
 function toOrderForPayment(order: {
@@ -67,9 +87,16 @@ export class PaymentsService {
     private readonly prisma: PrismaService,
   ) {
     const get = (key: string) => this.config.get<string>(key);
-    this.providers = { mock: new MockPaymentProvider() };
+    this.providers = {
+      mock: new MockPaymentProvider(),
+      bank: new BankTransferProvider(get),
+      cod: new CodPaymentProvider(),
+    };
     if (this.isEnabled('momo')) {
       this.providers['momo'] = new MomoPaymentProvider(get);
+    }
+    if (this.isEnabled('zalopay')) {
+      this.providers['zalopay'] = new ZalopayPaymentProvider(get);
     }
     if (this.isEnabled('paypal')) {
       this.providers['paypal'] = new PaypalPaymentProvider(get);
@@ -109,19 +136,41 @@ export class PaymentsService {
         return Boolean(get('PAYPAL_CLIENT_ID'));
       case 'vnpay':
         return Boolean(get('PAYMENT_VNPAY_TMN_CODE'));
+      case 'zalopay':
+        return Boolean(get('ZALOPAY_APP_ID') && get('ZALOPAY_KEY1') && get('ZALOPAY_KEY2'));
       case 'stripe':
         return Boolean(get('STRIPE_SECRET_KEY'));
+      case 'bank':
+        return true;
+      case 'cod':
+        return true;
       default:
         return true;
     }
   }
 
-  availableMethods(): Array<{ provider: string; label: string; enabled: boolean }> {
-    return Object.keys(this.providers).map((name) => ({
-      provider: name,
-      label: PROVIDER_LABELS[name] ?? name,
-      enabled: this.isEnabled(name),
-    }));
+  availableMethods(): Array<{
+    provider: string;
+    label: string;
+    enabled: boolean;
+    details?: Record<string, unknown>;
+  }> {
+    return Object.keys(this.providers)
+      .sort((a, b) => (PROVIDER_ORDER[a] ?? 99) - (PROVIDER_ORDER[b] ?? 99))
+      .map((name) => {
+        const provider = this.providers[name] as PaymentProviderInterface & {
+          getDetails?: () => Record<string, unknown>;
+        };
+        return {
+          provider: name,
+          label: PROVIDER_LABELS[name] ?? name,
+          enabled: this.isEnabled(name),
+          details:
+            typeof provider.getDetails === 'function'
+              ? provider.getDetails()
+              : undefined,
+        };
+      });
   }
 
   async createCheckout(
@@ -173,6 +222,7 @@ export class PaymentsService {
       status: result.status,
       checkoutUrl: result.checkoutUrl,
       clientSecret: result.clientSecret,
+      details: result.details,
       amount: Number(order.total),
       currency: 'VND',
     };
@@ -200,7 +250,7 @@ export class PaymentsService {
   }
 
   async handleVnpayReturn(userId: string, query: Record<string, string>) {
-    const orderId = query['vnp_TxnRef'];
+    const orderId = vnpayOrderIdFromTxnRef(query['vnp_TxnRef'] ?? '');
     if (!orderId) {
       throw new BadRequestException('Missing vnp_TxnRef');
     }
@@ -233,10 +283,45 @@ export class PaymentsService {
 
     return {
       orderId: order.id,
-      status: order.status,
+      status: 'PAID',
       responseCode,
       returnUrl: this.appUrl ? `${this.appUrl}/checkout/success?orderId=${order.id}` : null,
     };
+  }
+
+  async handleVnpayIpn(query: Record<string, string>) {
+    const orderId = vnpayOrderIdFromTxnRef(query['vnp_TxnRef'] ?? '');
+    if (!orderId) {
+      return { RspCode: '01', Message: 'Invalid TxnRef' };
+    }
+
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: { payment: true },
+    });
+    if (!order) {
+      return { RspCode: '01', Message: 'Order not found' };
+    }
+
+    const verified =
+      typeof this.providers['vnpay']?.verify === 'function'
+        ? await this.providers['vnpay'].verify!(query, toOrderForPayment(order))
+        : true;
+
+    if (!verified) {
+      return { RspCode: '97', Message: 'Invalid checksum' };
+    }
+
+    const responseCode = query['vnp_ResponseCode'];
+    if (responseCode === '00' && order.payment && order.status !== 'PAID') {
+      await this.markPaid(
+        { id: order.id, paymentId: order.payment.id, status: order.status },
+        query['vnp_TransactionNo'],
+        query,
+      );
+    }
+
+    return { RspCode: '00', Message: 'Confirm Success' };
   }
 
   async handleMomoReturn(userId: string, query: Record<string, string>) {
@@ -304,6 +389,103 @@ export class PaymentsService {
       await this.markPaid(
         { id: order.id, paymentId: order.payment.id, status: order.status },
         result.transactionId,
+      );
+    }
+
+    return {
+      orderId: order.id,
+      returnUrl: this.appUrl
+        ? `${this.appUrl}/checkout/success?orderId=${order.id}`
+        : `/checkout/success?orderId=${order.id}`,
+    };
+  }
+
+  async handleZalopayCallback(
+    rawBody: Buffer | undefined,
+  ): Promise<{ received: boolean }> {
+    const provider = this.providers['zalopay'];
+    if (!(provider instanceof ZalopayPaymentProvider)) {
+      return { received: false };
+    }
+
+    let body: { data?: string; mac?: string } = {};
+    try {
+      body = rawBody ? (JSON.parse(rawBody.toString('utf8')) as { data?: string; mac?: string }) : {};
+    } catch {
+      body = {};
+    }
+
+    const { valid, data } = provider.verifyCallback(body);
+    if (!valid || !data) {
+      return { received: false };
+    }
+
+    // status === 1 -> thanh toán thành công
+    if (Number(data.status) !== 1) {
+      return { received: true };
+    }
+
+    let embedData: Record<string, unknown> | null = null;
+    try {
+      embedData = JSON.parse(String(data.embed_data ?? '{}'));
+    } catch {
+      embedData = null;
+    }
+    const orderId =
+      typeof data.orderId === 'string'
+        ? data.orderId
+        : typeof embedData?.orderId === 'string'
+          ? embedData.orderId
+          : '';
+    if (!orderId) {
+      return { received: true };
+    }
+
+    await this.markPaidForOrder(
+      orderId,
+      typeof data.zp_trans_id === 'string' ? data.zp_trans_id : undefined,
+      data,
+    );
+    return { received: true };
+  }
+
+  async handleZalopayReturn(
+    query: Record<string, string>,
+  ): Promise<{ orderId: string; returnUrl: string }> {
+    const provider = this.providers['zalopay'];
+    if (!(provider instanceof ZalopayPaymentProvider)) {
+      throw new BadRequestException('ZaloPay provider is not configured');
+    }
+
+    const appTransId = query['apptransid'] ?? query['appTransId'] ?? '';
+    if (!appTransId) {
+      throw new BadRequestException('Missing ZaloPay apptransid');
+    }
+
+    const payment = await this.prisma.payment.findFirst({
+      where: {
+        payload: { path: ['details', 'appTransId'], equals: appTransId },
+      },
+    });
+    if (!payment) {
+      throw new NotFoundException('Payment not found');
+    }
+
+    const order = await this.prisma.order.findUnique({
+      where: { id: payment.orderId },
+      include: { payment: true },
+    });
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    // Best-effort: xác nhận thanh toán qua query API nếu callback chưa về.
+    const result = await provider.queryStatus(appTransId);
+    if (result.succeeded && order.status !== 'PAID') {
+      await this.markPaid(
+        { id: order.id, paymentId: payment.id, status: order.status },
+        result.transactionId,
+        result.raw,
       );
     }
 

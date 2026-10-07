@@ -56,6 +56,29 @@ export class PaymentsController {
     res.redirect(result.returnUrl);
   }
 
+  @Get('zalopay/return')
+  async zalopayReturn(
+    @Query() query: Record<string, string>,
+    @Res() res: Response,
+  ) {
+    const result = await this.payments.handleZalopayReturn(query);
+    res.redirect(result.returnUrl);
+  }
+
+  @Post('zalopay/callback')
+  @HttpCode(200)
+  async zalopayCallback(@Req() req: Request) {
+    const rawBody = (req as unknown as { rawBody?: Buffer }).rawBody;
+    return this.payments.handleZalopayCallback(rawBody);
+  }
+
+  @Get('vnpay/ipn')
+  @Post('vnpay/ipn')
+  @HttpCode(200)
+  vnpayIpn(@Query() query: Record<string, string>) {
+    return this.payments.handleVnpayIpn(query);
+  }
+
   @Post('webhook')
   @HttpCode(200)
   async webhook(

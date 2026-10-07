@@ -20,11 +20,21 @@ function formatDateTime(d: Date): string {
   ].join('');
 }
 
-function sortParams(params: Record<string, string>): string {
-  return Object.keys(params)
-    .sort()
-    .map((key) => `${key}=${params[key]}`)
-    .join('&');
+/**
+ * PHP urlencode semantics (space => '+'), which is what VNPay uses when it
+ * builds the signed query string on both directions.
+ */
+function vnpUrlEncode(value: string): string {
+  return encodeURIComponent(value)
+    .replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`)
+    .replace(/%20/g, '+');
+}
+
+const TXN_REF_PATTERN = /^ORD(.+?)(\d{14})$/;
+
+export function vnpayOrderIdFromTxnRef(txnRef: string): string | null {
+  const match = TXN_REF_PATTERN.exec(txnRef);
+  return match ? match[1] : null;
 }
 
 export class VnpayPaymentProvider implements PaymentProvider {
@@ -33,16 +43,15 @@ export class VnpayPaymentProvider implements PaymentProvider {
   private readonly hashSecret: string;
   private readonly endpoint: string;
   private readonly returnUrl: string;
-  private readonly ipnUrl: string;
 
   constructor(configGetter: (key: string) => string | undefined) {
     this.tmnCode = configGetter('PAYMENT_VNPAY_TMN_CODE') ?? '';
-    this.hashSecret = configGetter('PAYMENT_SECRET') ?? '';
+    this.hashSecret =
+      configGetter('PAYMENT_VNPAY_HASH_SECRET') ?? configGetter('PAYMENT_SECRET') ?? '';
     this.returnUrl = configGetter('PAYMENT_VNPAY_RETURN_URL') ?? '';
-    this.ipnUrl = configGetter('PAYMENT_VNPAY_IPN_URL') ?? this.returnUrl;
     this.endpoint =
       configGetter('PAYMENT_VNPAY_URL') ??
-      'https://sandbox.vnpayment.vn/paymentv2/ProcessRequestOTP';
+      'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html';
   }
 
   async create(order: OrderForPayment, ip = '127.0.0.1'): Promise<CheckoutResult> {
@@ -57,21 +66,23 @@ export class VnpayPaymentProvider implements PaymentProvider {
       vnp_CurrCode: 'VND',
       vnp_TxnRef: `ORD${order.id}${formatDateTime(now)}`,
       vnp_OrderInfo: `Thanh toan don hang ${order.id}`,
-      vnp_OrderType: '27',
+      vnp_OrderType: 'other',
       vnp_Locale: 'vn',
       vnp_IpAddr: ip,
       vnp_ReturnUrl: this.returnUrl,
-      vnp_IpnUrl: this.ipnUrl,
       vnp_CreateDate: formatDateTime(now),
       vnp_ExpireDate: formatDateTime(expire),
     };
 
-    const query = sortParams(params);
-    const secureHash = createHmac('sha256', this.hashSecret)
-      .update(query)
+    const queryData = Object.keys(params)
+      .sort()
+      .map((key) => `${key}=${vnpUrlEncode(params[key])}`)
+      .join('&');
+    const secureHash = createHmac('sha512', this.hashSecret)
+      .update(queryData)
       .digest('hex');
 
-    const checkoutUrl = `${this.endpoint}?${query}&vnp_SecureHash=${secureHash}`;
+    const checkoutUrl = `${this.endpoint}?${queryData}&vnp_SecureHash=${secureHash}`;
 
     return {
       provider: this.name,
@@ -86,12 +97,17 @@ export class VnpayPaymentProvider implements PaymentProvider {
     const secureHash = params['vnp_SecureHash'] ?? params['vnp_HashSecret'];
     if (!secureHash) return false;
 
-    const verifyParams: Record<string, string> = { ...params };
-    delete verifyParams['vnp_SecureHash'];
-    delete verifyParams['vnp_HashSecret'];
+    const verifyParams: Record<string, string> = {};
+    for (const [key, value] of Object.entries(params)) {
+      if (key === 'vnp_SecureHash' || key === 'vnp_HashSecret') continue;
+      if (value) verifyParams[key] = value;
+    }
 
-    const query = sortParams(verifyParams);
-    const expected = createHmac('sha256', this.hashSecret).update(query).digest('hex');
+    const query = Object.keys(verifyParams)
+      .sort()
+      .map((key) => `${key}=${vnpUrlEncode(verifyParams[key])}`)
+      .join('&');
+    const expected = createHmac('sha512', this.hashSecret).update(query).digest('hex');
     return expected === secureHash;
   }
 }

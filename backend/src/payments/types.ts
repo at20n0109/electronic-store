@@ -27,6 +27,7 @@ export interface CheckoutResult {
   currency: string;
   checkoutUrl?: string;
   clientSecret?: string;
+  details?: Record<string, unknown>;
 }
 
 export interface PaymentProvider {

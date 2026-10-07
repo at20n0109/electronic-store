@@ -186,7 +186,10 @@ enum PaymentProvider {
   STRIPE
   VNPAY
   MOMO
+  ZALOPAY
   PAYPAL
+  BANK
+  COD
   MOCK
 }
 

@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { AddCartItemDto } from './dto/add-cart-item.dto.js';
+import type { AddCartItemsDto } from './dto/add-cart-items.dto.js';
 import type { UpdateCartItemDto } from './dto/update-cart-item.dto.js';
 
 const ACTIVE = 'ACTIVE';
@@ -106,6 +107,44 @@ export class CartService {
           quantity: qty,
         },
       });
+    }
+
+    return this.getCart(userId);
+  }
+
+  async addItems(userId: string, dto: AddCartItemsDto) {
+    const cart = await this.getOrCreate(userId);
+
+    for (const entry of dto.items) {
+      const product = await this.prisma.product.findUnique({
+        where: { id: entry.productId },
+      });
+      if (!product || product.status !== ACTIVE) continue;
+
+      const qty = entry.quantity ?? 1;
+      if (qty < 1) continue;
+      if (qty > product.stock) continue;
+
+      const existing = await this.prisma.cartItem.findUnique({
+        where: { cartId_productId: { cartId: cart.id, productId: product.id } },
+      });
+
+      if (existing) {
+        const next = existing.quantity + qty;
+        if (next > product.stock) continue;
+        await this.prisma.cartItem.update({
+          where: { id: existing.id },
+          data: { quantity: next },
+        });
+      } else {
+        await this.prisma.cartItem.create({
+          data: {
+            cartId: cart.id,
+            productId: product.id,
+            quantity: qty,
+          },
+        });
+      }
     }
 
     return this.getCart(userId);
