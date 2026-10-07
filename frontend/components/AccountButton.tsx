@@ -90,12 +90,12 @@ export function AccountButton() {
 
   return (
     <Link
-      href="/register"
+      href="/login"
       className="flex h-10 items-center gap-2 rounded-lg px-2 text-sm font-semibold text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-red-400"
-      aria-label="Đăng ký / Đăng nhập"
+      aria-label="Đăng nhập"
     >
       <UserIcon />
-      <span className="hidden lg:inline">Đăng ký</span>
+      <span className="hidden lg:inline">Đăng nhập</span>
     </Link>
   );
 }

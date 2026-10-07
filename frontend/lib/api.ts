@@ -59,6 +59,34 @@ function storeAuth<T extends AuthResult>(result: T): T {
   return result;
 }
 
+let refreshInFlight: Promise<boolean> | null = null;
+
+function tryRefreshAuth(): Promise<boolean> {
+  if (typeof document === 'undefined' || !document.cookie.includes('csrf_token=')) {
+    return Promise.resolve(false);
+  }
+  if (!refreshInFlight) {
+    refreshInFlight = (async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/v1/auth/refresh`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { ...csrfHeaders(), 'content-type': 'application/json' },
+          body: '{}',
+        });
+        if (!res.ok) return false;
+        storeAuth((await res.json()) as AuthResult);
+        return true;
+      } catch {
+        return false;
+      } finally {
+        refreshInFlight = null;
+      }
+    })();
+  }
+  return refreshInFlight;
+}
+
 export function clearStoredAuth(): void {
   if (typeof window !== 'undefined') {
     window.localStorage.removeItem(TOKEN_KEY);
@@ -66,9 +94,40 @@ export function clearStoredAuth(): void {
   }
 }
 
+export class ApiError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+    readonly path?: string,
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
+function extractErrorMessage(status: number, path: string, body: string): string {
+  if (body) {
+    try {
+      const parsed = JSON.parse(body) as { message?: unknown };
+      const m = parsed?.message;
+      const text =
+        typeof m === 'string'
+          ? m
+          : m && typeof m === 'object' && typeof (m as { message?: unknown }).message === 'string'
+            ? ((m as { message: string }).message)
+            : null;
+      if (text) return text;
+    } catch {
+      // not JSON — fall through
+    }
+  }
+  return `API request failed: ${status} ${path}`;
+}
+
 export async function apiFetch<T>(
   path: string,
   init?: RequestInit,
+  retriedAfterRefresh = false,
 ): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
     cache: 'no-store',
@@ -81,9 +140,13 @@ export async function apiFetch<T>(
     },
   });
 
+  if (res.status === 401 && !retriedAfterRefresh && (await tryRefreshAuth())) {
+    return apiFetch<T>(path, init, true);
+  }
+
   if (!res.ok) {
-    const detail = await res.text().catch(() => '');
-    throw new Error(`API request failed: ${res.status} ${path}${detail ? ` - ${detail}` : ''}`);
+    const body = await res.text().catch(() => '');
+    throw new ApiError(res.status, extractErrorMessage(res.status, path, body), path);
   }
 
   if (res.status === 204) return undefined as T;
@@ -252,6 +315,26 @@ export async function getOrder(orderId: string): Promise<Order> {
 
 export async function getInvoice(orderId: string): Promise<Invoice> {
   return apiFetch<Invoice>(`/api/v1/invoices/orders/${orderId}`);
+}
+
+export async function getInvoicePdf(invoiceId: string): Promise<Blob> {
+  let retried = false;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const res = await fetch(
+      `${API_URL}/api/v1/invoices/${encodeURIComponent(invoiceId)}/pdf`,
+      {
+        credentials: 'include',
+        headers: { ...bearerHeaders() },
+      },
+    );
+    if (res.ok) return res.blob();
+    if (res.status === 401 && !retried && (await tryRefreshAuth())) {
+      retried = true;
+      continue;
+    }
+    throw new ApiError(res.status, `Không tải được PDF (HTTP ${res.status})`);
+  }
+  throw new ApiError(401, 'Không tải được PDF');
 }
 
 export function getImageUrl(

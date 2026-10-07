@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 export default async function CheckoutSuccessPage({
   searchParams,
 }: {
@@ -20,19 +22,19 @@ export default async function CheckoutSuccessPage({
       </p>
       <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
         {orderId && (
-          <a
+          <Link
             href={`/invoice/${orderId}`}
             className="flex h-12 w-full items-center justify-center rounded-xl bg-red-600 px-6 text-sm font-semibold text-white transition-colors hover:bg-red-500 sm:w-auto"
           >
             Xem hoá đơn & PDF
-          </a>
+          </Link>
         )}
-        <a
+        <Link
           href="/"
           className="flex h-12 w-full items-center justify-center rounded-xl border border-zinc-300 px-6 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900 sm:w-auto"
         >
           Tiếp tục mua sắm
-        </a>
+        </Link>
       </div>
     </div>
   );

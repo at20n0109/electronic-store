@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useCart } from '@/context/CartContext';
 import { checkout, createOrder, getPaymentMethods } from '@/lib/api';
 import type { CreateOrderFields, PaymentMethod } from '@/lib/api';
@@ -49,12 +50,12 @@ export default function CheckoutPage() {
     return (
       <div className="mx-auto max-w-3xl px-4 py-16 text-center">
         <p className="text-zinc-600">Giỏ hàng của bạn đang trống.</p>
-        <a
+        <Link
           href="/"
           className="text-red-600 underline"
         >
           Tiếp tục mua sắm
-        </a>
+        </Link>
       </div>
     );
   }
@@ -355,19 +356,19 @@ function PlacedView({ placed }: { placed: PlacedOrder }) {
 
       <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
         {placed.orderId && (
-          <a
+          <Link
             href={`/invoice/${placed.orderId}`}
             className="flex h-12 w-full items-center justify-center rounded-xl bg-red-600 px-6 text-sm font-semibold text-white transition-colors hover:bg-red-500 sm:w-auto"
           >
             Xem hoá đơn
-          </a>
+          </Link>
         )}
-        <a
+        <Link
           href="/"
           className="flex h-12 w-full items-center justify-center rounded-xl border border-zinc-300 px-6 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900 sm:w-auto"
         >
           Tiếp tục mua sắm
-        </a>
+        </Link>
       </div>
     </div>
   );

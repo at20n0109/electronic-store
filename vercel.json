@@ -17,7 +17,12 @@
       "root": "backend",
       "runtime": "node",
       "entrypoint": "server.cjs",
-      "buildCommand": "npm run build -s && npx prisma generate && npm run build:vercel -s"
+      "buildCommand": "npm run build -s && npx prisma generate && npm run build:vercel -s",
+      "functions": {
+        "server.cjs": {
+          "includeFiles": "backend/node_modules/pdfkit/js/**"
+        }
+      }
     }
   },
   "rewrites": [
