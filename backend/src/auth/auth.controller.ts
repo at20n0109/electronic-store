@@ -25,7 +25,10 @@ const COOKIE_PATH = '/';
 const COOKIE_LAX = 'lax';
 const CSRF_COOKIE = 'csrf_token';
 
-type AuthResponse = Pick<AuthResult, 'user'>;
+type AuthResponse = {
+  user: SessionUser;
+  accessToken: string;
+};
 
 function setCookies(res: Response, r: AuthResult): void {
   const secure = process.env.NODE_ENV === 'production';
@@ -71,7 +74,7 @@ export class AuthController {
   ): Promise<AuthResponse> {
     const r = await this.auth.register(dto, req.headers['user-agent']);
     setCookies(res, r);
-    return { user: r.user };
+    return { user: r.user, accessToken: r.accessToken };
   }
 
   @Post('login')
@@ -84,7 +87,7 @@ export class AuthController {
   ): Promise<AuthResponse> {
     const r = await this.auth.login(dto, req.headers['user-agent']);
     setCookies(res, r);
-    return { user: r.user };
+    return { user: r.user, accessToken: r.accessToken };
   }
 
   @Post('refresh')
@@ -102,7 +105,7 @@ export class AuthController {
     }
     const r = await this.auth.refresh(token, req.headers['user-agent']);
     setCookies(res, r);
-    return { user: r.user };
+    return { user: r.user, accessToken: r.accessToken };
   }
 
   @Post('logout')

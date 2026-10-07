@@ -6,15 +6,19 @@ export const PROMO = {
   cta: 'MUA NGAY',
   href: '/san-pham',
   /** Trung thu 2026 — rằm tháng Tám (25/09/2026) nằm giữa chiến dịch. Giờ VN +07:00. */
-  startsAt: new Date('2026-09-20T00:00:00+07:00'),
-  endsAt: new Date('2026-10-20T23:59:59+07:00'),
+  startsAt: '2026-09-20T00:00:00+07:00',
+  endsAt: '2026-10-20T23:59:59+07:00',
 } as const;
 
 export function isPromoSaleActive(now: Date = new Date()): boolean {
-  return now >= PROMO.startsAt && now <= PROMO.endsAt;
+  return now >= new Date(PROMO.startsAt) && now <= new Date(PROMO.endsAt);
+}
+
+function formatDayMonth(iso: string): string {
+  const match = /^\d{4}-(\d{2})-(\d{2})T/.exec(iso);
+  return match ? `${match[2]}.${match[1]}` : iso;
 }
 
 export function formatPromoRange(): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${pad(PROMO.startsAt.getDate())}.${pad(PROMO.startsAt.getMonth() + 1)} — ${pad(PROMO.endsAt.getDate())}.${pad(PROMO.endsAt.getMonth() + 1)}`;
+  return `${formatDayMonth(PROMO.startsAt)} — ${formatDayMonth(PROMO.endsAt)}`;
 }

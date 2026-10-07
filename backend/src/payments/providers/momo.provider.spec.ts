@@ -155,7 +155,7 @@ describe('MomoPaymentProvider', () => {
   });
 
   it('verifies an IPN body including qrcodeUrl', () => {
-    const body = {
+    const body: Record<string, string> = {
       ...returnParams(),
       qrcodeUrl: 'https://qr.momo.vn/sim/test',
     };

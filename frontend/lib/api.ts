@@ -21,6 +21,8 @@ export const API_URL =
       'http://127.0.0.1:3001')
     : (process.env.NEXT_PUBLIC_API_URL ?? '');
 
+const TOKEN_KEY = 'pcstore_access_token';
+
 function csrfHeaders(): HeadersInit | undefined {
   if (typeof document === 'undefined') return undefined;
   const token = document.cookie
@@ -28,6 +30,40 @@ function csrfHeaders(): HeadersInit | undefined {
     .find((value) => value.startsWith('csrf_token='))
     ?.split('=')[1];
   return token ? { 'x-csrf-token': decodeURIComponent(token) } : undefined;
+}
+
+function bearerHeaders(): HeadersInit | undefined {
+  if (typeof window === 'undefined') return undefined;
+  const token = window.localStorage.getItem(TOKEN_KEY);
+  return token ? { Authorization: `Bearer ${token}` } : undefined;
+}
+
+export function getAccessToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return window.localStorage.getItem(TOKEN_KEY);
+}
+
+const AUTH_EVENT = 'pcstore:auth';
+
+function dispatchAuthEvent(): void {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(AUTH_EVENT));
+  }
+}
+
+function storeAuth<T extends AuthResult>(result: T): T {
+  if (typeof window !== 'undefined' && result.accessToken) {
+    window.localStorage.setItem(TOKEN_KEY, result.accessToken);
+    dispatchAuthEvent();
+  }
+  return result;
+}
+
+export function clearStoredAuth(): void {
+  if (typeof window !== 'undefined') {
+    window.localStorage.removeItem(TOKEN_KEY);
+    dispatchAuthEvent();
+  }
 }
 
 export async function apiFetch<T>(
@@ -40,6 +76,7 @@ export async function apiFetch<T>(
     ...init,
     headers: {
       ...csrfHeaders(),
+      ...bearerHeaders(),
       ...init?.headers,
     },
   });
@@ -76,22 +113,27 @@ export async function getPcBuild(slug: string) {
 }
 
 export async function register(fields: RegisterFields): Promise<AuthResult> {
-  return apiFetch('/api/v1/auth/register', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(fields),
-  });
+  return storeAuth(
+    await apiFetch<AuthResult>('/api/v1/auth/register', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(fields),
+    }),
+  );
 }
 
 export async function login(fields: LoginFields): Promise<AuthResult> {
-  return apiFetch('/api/v1/auth/login', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(fields),
-  });
+  return storeAuth(
+    await apiFetch<AuthResult>('/api/v1/auth/login', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(fields),
+    }),
+  );
 }
 
 export async function logout(): Promise<void> {
+  clearStoredAuth();
   await apiFetch<void>('/api/v1/auth/logout', { method: 'POST' });
 }
 

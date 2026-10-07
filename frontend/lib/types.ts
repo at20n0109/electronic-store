@@ -89,6 +89,7 @@ export type SessionUser = {
 
 export type AuthResult = {
   user: SessionUser;
+  accessToken?: string;
 };
 
 export type RegisterFields = {

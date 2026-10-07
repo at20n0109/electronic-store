@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { formatPromoRange, isPromoSaleActive, PROMO } from '@/lib/promo';
 import {
   CloudBlob,
@@ -37,14 +37,15 @@ function CloseIcon() {
 }
 
 export function MidAutumnPromo() {
-  const [dismissed, setDismissed] = useState(() => {
-    if (typeof window === 'undefined') return false;
+  const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
     try {
-      return sessionStorage.getItem(DISMISS_KEY) === '1';
+      if (sessionStorage.getItem(DISMISS_KEY) === '1') setDismissed(true);
     } catch {
-      return false;
+      // ignore
     }
-  });
+  }, []);
 
   const active = isPromoSaleActive();
   if (!active || dismissed) return null;

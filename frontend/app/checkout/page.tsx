@@ -6,6 +6,8 @@ import { useCart } from '@/context/CartContext';
 import { checkout, createOrder, getPaymentMethods } from '@/lib/api';
 import type { CreateOrderFields, PaymentMethod } from '@/lib/api';
 
+export const dynamic = 'force-dynamic';
+
 export default function CheckoutPage() {
   const router = useRouter();
   const { cart } = useCart();

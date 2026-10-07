@@ -12,6 +12,7 @@ import type { Cart } from '@/lib/types';
 import {
   addToCart,
   clearCart,
+  getAccessToken,
   getCart,
   removeCartItem,
   updateCartItem,
@@ -48,6 +49,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
+      if (!getAccessToken()) {
+        setCart(null);
+        setError(null);
+        return;
+      }
       setCart(await getCart());
       setError(null);
     } catch {

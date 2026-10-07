@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { register } from "../../lib/api";
 import { UserPlus, Lock, Envelope } from "@phosphor-icons/react";
 
+export const dynamic = "force-dynamic";
+
 export default function RegisterPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
