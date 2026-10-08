@@ -23,8 +23,14 @@ enum Role {
 model User {
   id            String         @id @default(uuid())
   email         String         @unique
-  passwordHash  String
+  passwordHash  String?
   name          String?
+  phone         String?        @unique
+  phoneVerified Boolean        @default(false)
+  emailVerified Boolean        @default(false)
+  authProvider  String         @default("local")
+  providerId    String?
+  avatarUrl     String?
   role          Role           @default(CUSTOMER)
   isActive      Boolean        @default(true)
   createdAt     DateTime       @default(now())
@@ -34,6 +40,19 @@ model User {
   orders        Order[]
 
   @@index([email])
+  @@index([authProvider, providerId])
+}
+
+model Otp {
+  id        String    @id @default(uuid())
+  phone     String
+  codeHash  String
+  attempts  Int       @default(0)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([phone])
 }
 
 model RefreshToken {
@@ -243,4 +262,23 @@ model OrderItem {
 
   @@index([orderId])
   @@index([productId])
+}
+model PaymentMetadata {
+  id            String   @id @default(cuid())
+  orderId       String   @unique
+  paymentId     String
+  provider      String
+  encryptedData String
+  iv            String
+  authTag       String?
+  status        String   @default("pending")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  confirmedAt   DateTime?
+  confirmedBy   String?
+  note          String?
+
+  @@index([orderId])
+  @@index([paymentId])
+  @@index([status])
 }

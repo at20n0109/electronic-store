@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PC Store — Website &amp; Bảo mật</title>
+<style>
+:root {
+  --bg: #0B0B0F;
+  --bg-alt: #12121A;
+  --card: #17171F;
+  --border: #262632;
+  --primary: #DC2626;
+  --primary-soft: #F87171;
+  --accent: #F59E0B;
+  --text: #F3F4F6;
+  --muted: #9CA3AF;
+  --green: #34D399;
+  --mono: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Saira', 'Segoe UI', system-ui, sans-serif;
+  overflow: hidden;
+}
+.slide-deck {
+  position: relative;
+  width: 100vw; height: 100vh;
+  overflow: hidden;
+}
+@media (min-width: 769px) {
+  .slide-deck {
+    max-width: calc(100vh * 16 / 9);
+    max-height: calc(100vw * 9 / 16);
+    margin: auto;
+    position: absolute; inset: 0;
+  }
+}
+.slide {
+  position: absolute; width: 100%; height: 100%;
+  display: flex; flex-direction: column;
+  justify-content: center; align-items: center;
+  padding: 56px 72px;
+  opacity: 0; visibility: hidden;
+  transition: opacity .4s;
+  background: var(--bg);
+  overflow: hidden;
+}
+@media (min-width: 769px) {
+  .slide { align-items: center; }
+  .slide[data-left] { align-items: flex-start; text-align: left; }
+}
+.slide.active { opacity: 1; visibility: visible; }
+.slide-content {
+  width: 100%; max-width: 1100px;
+  max-height: 100%;
+  display: flex; flex-direction: column;
+  justify-content: center;
+  gap: 18px;
+}
+.slide[data-left] .slide-content { align-items: flex-start; text-align: left; }
+
+.slide-title {
+  font-size: clamp(30px, 5vw, 62px);
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-weight: 700;
+}
+h2 {
+  font-size: clamp(22px, 3vw, 36px);
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+.subtitle { color: var(--muted); font-size: clamp(16px, 1.8vw, 22px); margin-top: 8px; }
+.kicker {
+  text-transform: uppercase; letter-spacing: .18em;
+  font-size: clamp(11px, 1.2vw, 14px);
+  color: var(--primary-soft);
+  font-weight: 600;
+}
+.divider { width: 64px; height: 4px; border-radius: 2px; background: var(--primary); }
+.divider.gold { background: var(--accent); }
+p, li { font-size: clamp(15px, 1.6vw, 19px); color: var(--text); }
+.muted { color: var(--muted); }
+.tag {
+  display: inline-block; padding: 4px 12px; border-radius: 999px;
+  background: rgba(220,38,38,.12); color: var(--primary-soft);
+  border: 1px solid rgba(220,38,38,.35);
+  font-size: clamp(12px, 1.3vw, 15px); font-weight: 600;
+  margin: 2px;
+}
+.tag.gold { background: rgba(245,158,11,.12); color: var(--accent); border-color: rgba(245,158,11,.35); }
+.tag.green { background: rgba(52,211,153,.12); color: var(--green); border-color: rgba(52,211,153,.35); }
+
+.grid { display: grid; gap: 14px; width: 100%; }
+.grid.cols-2 { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.grid.cols-3 { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+.grid.cols-4 { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 18px 20px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.card .num { font-family: var(--mono); color: var(--primary-soft); font-size: clamp(18px, 2vw, 26px); font-weight: 700; }
+.card .num.gold { color: var(--accent); }
+.card .num.green { color: var(--green); }
+.card h3 { font-size: clamp(15px, 1.6vw, 19px); }
+.card p { color: var(--muted); font-size: clamp(13px, 1.4vw, 16px); }
+
+code {
+  font-family: var(--mono);
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 2px 7px;
+  font-size: .92em;
+  color: var(--primary-soft);
+}
+pre {
+  width: 100%;
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--primary);
+  border-radius: 10px;
+  padding: 16px 20px;
+  font-family: var(--mono);
+  font-size: clamp(12px, 1.35vw, 15px);
+  line-height: 1.65;
+  overflow-x: auto;
+  color: #E5E7EB;
+  white-space: pre-wrap;
+}
+pre .c { color: var(--muted); }
+pre .k { color: var(--primary-soft); }
+pre .s { color: var(--accent); }
+pre .g { color: var(--green); }
+
+/* Architecture diagram */
+.arch { display: flex; align-items: stretch; gap: 10px; width: 100%; flex-wrap: wrap; justify-content: center; }
+.arch .node {
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  padding: 14px 18px; text-align: center; flex: 1 1 150px;
+}
+.arch .node.big { flex: 1 1 220px; background: rgba(220,38,38,.07); border-color: rgba(220,38,38,.4); }
+.arch .node h4 { font-size: 15px; }
+.arch .node p { font-size: 12.5px; color: var(--muted); }
+.arch .arrow { align-self: center; color: var(--primary-soft); font-size: 20px; }
+
+/* checklist rows */
+.rows { width: 100%; display: flex; flex-direction: column; gap: 10px; }
+.row {
+  display: flex; gap: 12px; align-items: baseline;
+  background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+  padding: 12px 16px;
+}
+.row .dot { color: var(--green); font-weight: 700; flex-shrink: 0; }
+.row b { color: var(--text); }
+.row code { background: var(--bg-alt); }
+.row .where { margin-left: auto; color: var(--muted); font-family: var(--mono); font-size: 12px; white-space: nowrap; }
+
+/* progress + nav */
+.progress-bar { position: fixed; top: 0; left: 0; height: 3px; background: linear-gradient(90deg, var(--primary), var(--accent)); transition: width .3s; z-index: 1000; }
+.nav-controls { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 16px; z-index: 1000; }
+.nav-btn {
+  background: rgba(255,255,255,.08); border: 1px solid var(--border); color: var(--text);
+  width: 38px; height: 38px; border-radius: 50%; cursor: pointer; font-size: 16px;
+}
+.nav-btn:hover { background: rgba(220,38,38,.25); }
+.slide-counter { color: var(--muted); font-size: 13px; font-family: var(--mono); }
+
+@media (max-width: 768px) {
+  .slide { padding: 28px 22px; }
+  .grid.cols-2,.grid.cols-3,.grid.cols-4 { grid-template-columns: 1fr; }
+  .arch .arrow { transform: rotate(90deg); }
+  .row .where { display: none; }
+  .nav-controls { bottom: 14px; gap: 10px; }
+}
+</style>
+</head>
+<body>
+<div class="progress-bar" id="progressBar"></div>
+<div class="slide-deck">
+
+<!-- 1. Title -->
+<div class="slide active">
+  <div class="slide-content">
+    <div class="kicker">Đồ án — Website thương mại điện tử</div>
+    <h1 class="slide-title">PC Store</h1>
+    <div class="divider"></div>
+    <p class="subtitle">Website bán lẻ phụ kiện máy tính</p>
+    <p class="muted">Giới thiệu sản phẩm &amp; hệ thống phương thức bảo mật</p>
+    <div style="margin-top:18px">
+      <span class="tag">Next.js 16</span><span class="tag">NestJS</span><span class="tag">PostgreSQL</span><span class="tag">Prisma</span><span class="tag gold">JWT + Argon2id</span>
+    </div>
+  </div>
+</div>
+
+<!-- 2. Giới thiệu -->
+<div class="slide" data-left>
+  <div class="slide-content">
+    <div class="kicker">Giới thiệu</div>
+    <h1 class="slide-title">Website bán phụ kiện PC</h1>
+    <p class="muted">Cửa hàng đầy đủ chu trình mua sắm thực tế</p>
+    <div class="grid cols-4">
+      <div class="card"><div class="num">01</div><h3>Danh mục sản phẩm</h3><p>Case, CPU, GPU, mainboard, RAM, SSD, PSU, tản nhiệt — có filter &amp; tìm kiếm</p></div>
+      <div class="card"><div class="num">02</div><h3>PC Builder</h3><p>Cấu hình bộ máy, cảnh báo tương thích linh kiện</p></div>
+      <div class="card"><div class="num">03</div><h3>Giỏ hàng + Đặt hàng</h3><p>Giỏ hàng theo tài khoản, thanh toán (mock), theo dõi đơn hàng</p></div>
+      <div class="card"><div class="num">04</div><h3>Hóa đơn PDF</h3><p>Tự tạo hóa đơn, quyền truy cập đúng chủ sở hữu</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- 3. Kiến trúc -->
+<div class="slide" data-left>
+  <div class="slide-content">
+    <div class="kicker">Kiến trúc</div>
+    <h1 class="slide-title">3 tầng rõ ràng</h1>
+    <div class="arch">
+      <div class="node"><h4>Frontend</h4><p>Next.js 16 · React 19</p></div>
+      <div class="arrow">→</div>
+      <div class="node big"><h4>Proxy same-origin</h4><p>routes `/api/v1/*` → backend</p></div>
+      <div class="arrow">→</div>
+      <div class="node"><h4>Backend API</h4><p>NestJS · REST · JWT</p></div>
+      <div class="arrow">→</div>
+      <div class="node"><h4>Data</h4><p>PostgreSQL · S3(R2/MinIO)</p></div>
+    </div>
+    <div class="grid cols-3" style="margin-top:10px">
+      <div class="card"><div class="num green">Same-origin</div><p>Cookie hoạt động mà không cần bỏ SameSite — giảm bề mặt tấn công CSRF</p></div>
+      <div class="card"><div class="num gold">REST + DTO</div><p>Validate mọi input ở biên giới qua ValidationPipe</p></div>
+      <div class="card"><div class="num">Auth layers</div><p>JwtGuard · RolesGuard · CsrfGuard · ownership check</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- 4. Bản đồ bảo mật -->
+<div class="slide" data-left>
+  <div class="slide-content">
+    <div class="kicker">Security overview</div>
+    <h1 class="slide-title">9 lớp phòng thủ</h1>
+    <div class="grid cols-3">
+      <div class="card"><div class="num">1</div><h3>Mật khẩu</h3><p>Argon2id — hash chuẩn OWASP</p></div>
+      <div class="card"><div class="num">2</div><h3>Session</h3><p>Access + refresh token, refresh hash &amp; rotate</p></div>
+      <div class="card"><div class="num">3</div><h3>Cookie</h3><p>httpOnly · SameSite · Secure</p></div>
+      <div class="card"><div class="num">4</div><h3>CSRF</h3><p>Double-submit cookie + timing-safe</p></div>
+      <div class="card"><div class="num">5</div><h3>Headers + CSP</h3><p>nosniff · DENY · script-src 'self'</p></div>
+      <div class="card"><div class="num">6</div><h3>Authorization</h3><p>Roles + ownership từng resource</p></div>
+      <div class="card"><div class="num">7</div><h3>Input validation</h3><p>whitelist · không SQL concat</p></div>
+      <div class="card"><div class="num">8</div><h3>Dev hardening</h3><p>chặn endpoint nội bộ __nextjs</p></div>
+      <div class="card"><div class="num gold">9</div><h3>Deployment</h3><p>CORS allow-list · HSTS · secrets qua env</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- 5. Mật khẩu -->
+<div class="slide" data-left>
+  <div class="slide-content">
+    <div class="kicker">Lớp 1 · Mật khẩu</div>
+    <h1 class="slide-title">Argon2id — không bao giờ lưu plaintext</h1>
+    <pre><code><span class="c">// backend/src/auth/auth.service.ts:64</span>
+<span class="k">const</span> passwordHash = <span class="k">await</span> argon2.hash(dto.password, {
+  <span class="k">type</span>: argon2.argon2id,        <span class="c">// đạt chuẩn Password Hashing Competition</span>
+  <span class="k">memoryCost</span>: 19456,           <span class="c">// ≈19MB — chống crack bằng GPU/FPGA</span>
+  <span class="k">timeCost</span>: 2,
+  <span class="k">parallelism</span>: 1,
+});
+<span class="k">const</span> ok = <span class="k">await</span> argon2.verify(user.passwordHash, dto.password);</code></pre>
+    <div class="grid cols-3">
+      <div class="card"><div class="num green">Argon2id</div><p>Thuật toán hash được cộng đồng bảo mật khuyến nghị hàng đầu hiện nay</p></div>
+      <div class="card"><div class="num">LK</div><p>Sai email hoặc sai mật khẩu đều trả <code>Invalid email or password</code> — chống dò tài khoản (user enumeration)</p></div>
+      <div class="card"><div class="num">Salt</div><p>Argon2 tự tạo salt random cho từng mật khẩu — 2 tài khoản cùng mật khẩu cho 2 hash khác nhau</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- 6. Session -->
+<div class="slide" data-left>
+  <div class="slide-content">
+    <div class="kicker">Lớp 2 · Phiên đăng nhập</div>
+    <h1 class="slide-title">Access + Refresh token bảo vệ đa lớp</h1>
+    <div class="grid cols-2">
+      <div class="card"><div class="num green">Access token · 15 phút</div><p>JWT ngắn hạn xác thực từng request — rò rỉ cũng chỉ dùng được trong thời gian ngắn</p></div>
+      <div class="card"><div class="num green">Refresh token · 30 ngày</div><p>Chỉ dùng để xin token mới — <b>không lưu plaintext</b> trong DB, chỉ lưu <code>SHA-256 hash</code></p></div>
+      <div class="card"><div class="num gold">Rotation</div><p>Mỗi lần refresh, token cũ bị <b>thu hồi ngay lập tức</b> — token bị đánh cắp dùng lại là vô hiệu</p></div>
+      <div class="card"><div class="num">Tamper-proof</div><p>JWT ký bằng secret từ env, kiểm tra issuer/audience — không sửa được thông tin trong token</p></div>
+    </div>
+    <p class="subtitle">Thời gian sống: access 15p, refresh 30 ngày — cân bằng giữa trải nghiệm &amp; bảo mật</p>
+  </div>
+</div>
+
+<!-- 7. Cookie -->
+<div class="slide" data-left>
+  <div class="slide-content">
+    <div class="kicker">Lớp 3 · Cookie</div>
+    <h1 class="slide-title">Cookie an toàn trước XSS</h1>
+    <pre><code><span class="c">// backend/src/auth/auth.controller.ts:31</span>
+res.cookie(ACCESS_COOKIE, r.accessToken, {
+  <span class="k">httpOnly</span>: <span class="s">true</span>,   <span class="c">// JS client không đọc được → kẻ XSS không cướp được token</span>
+  <span class="k">sameSite</span>: <span class="s">'lax'</span>, <span class="c">// trình duyệt không gửi kèm request chéo site</span>
+  <span class="k">secure</span>,           <span class="c">// production: chỉ gửi qua HTTPS</span>
+  <span class="k">path</span>: <span class="s">'/'</span>,
+  <span class="k">maxAge</span>: <span class="s">15</span> * <span class="s">60</span> * <span class="s">1000</span>,
+});</code></pre>
+    <div class="rows">
+      <div class="row"><span class="dot">✓</span><div><b>httpOnly</b> — chặn đánh cắp session bằng XSS/script</div></div>
+      <div class="row"><span class="dot">✓</span><div><b>SameSite=Lax</b> — lá chắn CSRF tầng trình duyệt</div></div>
+      <div class="row"><span class="dot">✓</span><div><b>Secure</b> — không lọt token khi dùng HTTP</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- 8. CSRF -->
+<div class="slide" data-left>
+  <div class="slide-content">
+    <div class="kicker">Lớp 4 · CSRF</div>
+    <h1 class="slide-title">Chống giả mạo request chéo site</h1>
+    <pre><code><span class="c">// backend/src/common/guards/csrf.guard.ts</span>
+<span class="k">if</span> (SAFE_METHODS.has(request.method)) <span class="k">return</span> <span class="s">true</span>;  <span class="c">// GET/HEAD/OPTIONS</span>
+<span class="c">// Với POST/PATCH/DELETE đang có session:</span>
+<span class="k">const</span> cookie = cookies.csrf_token;
+<span class="k">const</span> header = request.header(<span class="s">'x-csrf-token'</span>);
+<span class="k">if</span> (!cookie || !header || !sameValue(cookie, header))
+  <span class="k">throw</span> <span class="k">new</span> ForbiddenException(<span class="s">'CSRF validation failed'</span>);
+
+<span class="k">function</span> sameValue(a, b) { <span class="c">// so bằng hằng số thời gian</span>
+  <span class="k">return</span> a.length === b.length && timingSafeEqual(a, b);
+}</code></pre>
+    <div class="rows">
+      <div class="row"><span class="dot">✓</span><div><b>Double-submit cookie</b>: server so header với cookie — website thứ 3 không đọc được cookie nên không giả được header</div></div>
+      <div class="row"><span class="dot">✓</span><div><b>timingSafeEqual</b> — so sánh chuỗi không rò thông tin bằng thời gian phản hồi</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- 9. Headers + CSP -->
+<div class="slide" data-left>
+  <div class="slide-content">
+    <div class="kicker">Lớp 5 · Trình duyệt</div>
+    <h1 class="slide-title">Security headers + Content-Security-Policy</h1>
+    <div class="grid cols-2">
+      <div class="card"><div class="num">Headers</div>
+        <p><code>X-Content-Type-Options: nosniff</code> · <code>X-Frame-Options: DENY</code> (chống clickjacking)</p>
+        <p><code>Referrer-Policy: no-referrer</code> · <code>Permissions-Policy</code> tắt camera/mic/geo</p>
+        <p><code>Cache-Control: no-store</code> (page nhạy cảm) · <b>HSTS</b> ở production</p>
+      </div>
+      <div class="card"><div class="num gold">CSP production</div>
+        <pre style="border:none;padding:8px 0 0"><code><span class="k">default-src</span> <span class="s">'self'</span>;
+<span class="k">object-src</span> <span class="s">'none'</span>;   <span class="c">// chặn plugin</span>
+<span class="k">frame-ancestors</span> <span class="s">'none'</span>; <span class="c">// chặn iframe ngoài</span>
+<span class="k">base-uri</span> <span class="s">'self'</span>;
+<span class="k">script-src</span> <span class="s">'self'</span>;   <span class="c">// chặn inline/remote script</span></code></pre>
+        <p style="margin-top:6px">Không cho <code>unsafe-inline</code>/<code>unsafe-eval</code> ở production → tấn công XSS không chạy được code</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 10. Authorization -->
+<div class="slide" data-left>
+  <div class="slide-content">
+    <div class="kicker">Lớp 6 · Phân quyền</div>
+    <h1 class="slide-title">Chỉ chủ sở hữu mới truy cập</h1>
+    <div class="grid cols-3">
+      <div class="card"><div class="num green">JwtGuard</div><p>Route yêu cầu đăng nhập — không có token hợp lệ → <code>401</code></p></div>
+      <div class="card"><div class="num green">RolesGuard</div><p>Hạn chế thao tác quản trị cho admin — <code>403</code> nếu không đủ quyền</p></div>
+      <div class="card"><div class="num gold">Ownership</div><p>Mỗi khi lấy giỏ hàng / đơn hàng / hóa đơn / PDF đều kiểm tra <code>userId</code> của chủ thật</p></div>
+    </div>
+    <pre><code><span class="c">// backend/src/invoices/invoices.service.ts:121 — xem hóa đơn của NGƯỜI KHÁC → từ chối</span>
+<span class="k">if</span> (invoice.order.userId !== userId) {
+  <span class="k">throw</span> <span class="k">new</span> ForbiddenException(<span class="s">'You do not own this invoice'</span>);
+}</code></pre>
+  </div>
+</div>
+
+<!-- 11. Validation -->
+<div class="slide" data-left>
+  <div class="slide-content">
+    <div class="kicker">Lớp 7 · Input validation</div>
+    <h1 class="slide-title">Từ chối dữ liệu bẩn ngay ở biên giới</h1>
+    <pre><code><span class="c">// backend/src/main.ts:15</span>
+app.useGlobalPipes(<span class="k">new</span> ValidationPipe({
+  <span class="k">whitelist</span>: <span class="s">true</span>,            <span class="c">// bỏ field không khai báo trong DTO</span>
+  <span class="k">forbidNonWhitelisted</span>: <span class="s">true</span>, <span class="c">// chặn field lạ</span>
+  <span class="k">transform</span>: <span class="s">true</span>,           <span class="c">// ép kiểu theo DTO</span>
+}));</code></pre>
+    <div class="rows">
+      <div class="row"><span class="dot">✓</span><div><b>Chống mass-assignment</b> — không thể tự thêm field <code>isAdmin</code> vào request</div></div>
+      <div class="row"><span class="dot">✓</span><div><b>Chống SQL injection</b> — toàn bộ truy vấn qua Prisma (prepared statement), không concat chuỗi SQL</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- 12. Dev hardening -->
+<div class="slide" data-left>
+  <div class="slide-content">
+    <div class="kicker">Lớp 8 · Môi trường phát triển</div>
+    <h1 class="slide-title">Khóa endpoint nội bộ của dev server</h1>
+    <p class="muted">Next.js dev có các route nội bộ <code>/__nextjs_*</code> (mở Node inspector) — được xử lý trước cả middleware thường, nên bị chặn ở lớp HTTP bằng custom server:</p>
+    <pre><code><span class="c">// frontend/server.js — chạy trước khi Next xử lý request</span>
+createServer(<span class="k">function</span> (req, res) {
+  <span class="k">if</span> (dev && req.url.startsWith(<span class="s">'/__nextjs'</span>)) {
+    res.statusCode = <span class="s">403</span>; res.end(<span class="s">'Forbidden'</span>);
+    <span class="k">return</span>;
+  }
+  handle(req, res);
+})</code></pre>
+    <div class="rows">
+      <div class="row"><span class="dot">✓</span><div>Scanner dò sẽ nhận <b>403</b> thay vì URL debugger</div></div>
+      <div class="row"><span class="dot">✓</span><div>CSP dev nới <code>unsafe-inline/eval</code> để tiện XHR/HMR — nhưng <b>production thì bỏ hẳn</b></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- 13. Deployment -->
+<div class="slide" data-left>
+  <div class="slide-content">
+    <div class="kicker">Lớp 9 · Triển khai</div>
+    <h1 class="slide-title">Vững vàng khi lên mạng</h1>
+    <div class="grid cols-2">
+      <div class="card"><div class="num green">CORS allow-list</div><p>Production chỉ chấp nhận origin HTTPS với regex từ <code>CORS_ORIGIN</code> — server <b>từ chối khởi động</b> nếu không cấu hình</p></div>
+      <div class="card"><div class="num green">HSTS</div><p><code>Strict-Transport-Security</code> bắt buộc HTTPS trong production</p></div>
+      <div class="card"><div class="num gold">Secrets qua env</div><p>JWT secret, database, storage đều từ biến môi trường — <b>không hardcode, không commit</b> vào git</p></div>
+      <div class="card"><div class="num">Storage riêng</div><p>Hóa đơn PDF lưu S3-compatible (MinIO local / Cloudflare R2 prod) — tách khỏi app, chống quá tải</p></div>
+    </div>
+    <p class="subtitle">Github repo <code>at20n0109/electronic-store</code> · branch main · workflow rải theo commit nhỏ</p>
+  </div>
+</div>
+
+<!-- 14. Tóm tắt -->
+<div class="slide" data-left>
+  <div class="slide-content">
+    <div class="kicker">Tổng kết</div>
+    <h1 class="slide-title">Bảo mật từ thiết kế</h1>
+    <div class="rows">
+      <div class="row"><span class="dot">✓</span><div><b>Mật khẩu</b> — Argon2id, không plaintext, chống user enumeration</div></div>
+      <div class="row"><span class="dot">✓</span><div><b>Session</b> — access ngắn hạn + refresh token hash &amp; rotate</div></div>
+      <div class="row"><span class="dot">✓</span><div><b>Cookie</b> — httpOnly + SameSite + Secure, same-origin proxy</div></div>
+      <div class="row"><span class="dot">✓</span><div><b>CSRF</b> — double-submit cookie + timing-safe compare</div></div>
+      <div class="row"><span class="dot">✓</span><div><b>XSS / clickjacking</b> — CSP strict, nosniff, frame DENY, HSTS</div></div>
+      <div class="row"><span class="dot">✓</span><div><b>Phân quyền</b> — RolesGuard + ownership trên từng resource</div></div>
+      <div class="row"><span class="dot">✓</span><div><b>Input</b> — ValidationPipe whitelist, Prisma prepared statements</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- 15. Q&A -->
+<div class="slide">
+  <div class="slide-content">
+    <div class="kicker">Kết thúc</div>
+    <h1 class="slide-title">Cảm ơn thầy/cô &amp; các bạn</h1>
+    <div class="divider" style="margin:0 auto"></div>
+    <p class="subtitle">Nhận câu hỏi về website &amp; hệ thống bảo mật</p>
+    <div style="margin-top:16px">
+      <span class="tag">GitHub: at20n0109/electronic-store</span>
+      <span class="tag gold">Next.js · NestJS · PostgreSQL</span>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<div class="nav-controls">
+  <button class="nav-btn" onclick="prevSlide()">←</button>
+  <span class="slide-counter"><span id="current">1</span> / <span id="total">1</span></span>
+  <button class="nav-btn" onclick="nextSlide()">→</button>
+</div>
+
+<script>
+let current = 1;
+const total = document.querySelectorAll('.slide').length;
+document.getElementById('total').textContent = total;
+function showSlide(n) {
+  if (n < 1) n = 1;
+  if (n > total) n = total;
+  current = n;
+  document.querySelectorAll('.slide').forEach((s, i) => s.classList.toggle('active', i === n - 1));
+  document.getElementById('current').textContent = n;
+  document.getElementById('progressBar').style.width = (n / total * 100) + '%';
+}
+function nextSlide() { showSlide(current + 1); }
+function prevSlide() { showSlide(current - 1); }
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'Enter') { e.preventDefault(); nextSlide(); }
+  if (e.key === 'ArrowLeft') { e.preventDefault(); prevSlide(); }
+});
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.nav-controls')) nextSlide();
+});
+showSlide(1);
+</script>
+</body>
+</html>

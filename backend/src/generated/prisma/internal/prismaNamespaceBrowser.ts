@@ -52,6 +52,7 @@ export const AnyNull = runtime.AnyNull
 
 export const ModelName = {
   User: 'User',
+  Otp: 'Otp',
   RefreshToken: 'RefreshToken',
   Category: 'Category',
   Product: 'Product',
@@ -63,7 +64,8 @@ export const ModelName = {
   Order: 'Order',
   Payment: 'Payment',
   Invoice: 'Invoice',
-  OrderItem: 'OrderItem'
+  OrderItem: 'OrderItem',
+  PaymentMetadata: 'PaymentMetadata'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -87,6 +89,12 @@ export const UserScalarFieldEnum = {
   email: 'email',
   passwordHash: 'passwordHash',
   name: 'name',
+  phone: 'phone',
+  phoneVerified: 'phoneVerified',
+  emailVerified: 'emailVerified',
+  authProvider: 'authProvider',
+  providerId: 'providerId',
+  avatarUrl: 'avatarUrl',
   role: 'role',
   isActive: 'isActive',
   createdAt: 'createdAt',
@@ -94,6 +102,19 @@ export const UserScalarFieldEnum = {
 } as const
 
 export type UserScalarFieldEnum = (typeof UserScalarFieldEnum)[keyof typeof UserScalarFieldEnum]
+
+
+export const OtpScalarFieldEnum = {
+  id: 'id',
+  phone: 'phone',
+  codeHash: 'codeHash',
+  attempts: 'attempts',
+  expiresAt: 'expiresAt',
+  usedAt: 'usedAt',
+  createdAt: 'createdAt'
+} as const
+
+export type OtpScalarFieldEnum = (typeof OtpScalarFieldEnum)[keyof typeof OtpScalarFieldEnum]
 
 
 export const RefreshTokenScalarFieldEnum = {
@@ -260,6 +281,25 @@ export const OrderItemScalarFieldEnum = {
 } as const
 
 export type OrderItemScalarFieldEnum = (typeof OrderItemScalarFieldEnum)[keyof typeof OrderItemScalarFieldEnum]
+
+
+export const PaymentMetadataScalarFieldEnum = {
+  id: 'id',
+  orderId: 'orderId',
+  paymentId: 'paymentId',
+  provider: 'provider',
+  encryptedData: 'encryptedData',
+  iv: 'iv',
+  authTag: 'authTag',
+  status: 'status',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt',
+  confirmedAt: 'confirmedAt',
+  confirmedBy: 'confirmedBy',
+  note: 'note'
+} as const
+
+export type PaymentMetadataScalarFieldEnum = (typeof PaymentMetadataScalarFieldEnum)[keyof typeof PaymentMetadataScalarFieldEnum]
 
 
 export const SortOrder = {

@@ -85,6 +85,21 @@ export type SessionUser = {
   email: string;
   name: string | null;
   role: AuthRole;
+  phone?: string | null;
+  phoneVerified?: boolean;
+  avatarUrl?: string | null;
+  authProvider?: string;
+};
+
+export type SocialMethod = {
+  provider: 'google' | 'facebook' | 'apple';
+  label: string;
+  ready: boolean;
+};
+
+export type AuthMethods = {
+  social: SocialMethod[];
+  phone: boolean;
 };
 
 export type AuthResult = {

@@ -14,6 +14,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service.js';
 import { LoginDto } from './dto/login.dto.js';
 import { RegisterDto } from './dto/register.dto.js';
+import type { SocialProfile } from './social-accounts.js';
 
 const REFRESH_BYTES = 48;
 const ACCESS_TTL_DEFAULT = 900;
@@ -74,6 +75,10 @@ export interface SessionUser {
   email: string;
   name: string | null;
   role: string;
+  phone?: string | null;
+  phoneVerified?: boolean;
+  avatarUrl?: string | null;
+  authProvider?: string;
 }
 
 export interface AuthResult {
@@ -91,8 +96,21 @@ function toUser(d: {
   email: string;
   name: string | null;
   role: string;
+  phone?: string | null;
+  phoneVerified?: boolean;
+  avatarUrl?: string | null;
+  authProvider?: string;
 }): SessionUser {
-  return { id: d.id, email: d.email, name: d.name, role: d.role };
+  return {
+    id: d.id,
+    email: d.email,
+    name: d.name,
+    role: d.role,
+    phone: d.phone ?? null,
+    phoneVerified: d.phoneVerified ?? false,
+    avatarUrl: d.avatarUrl ?? null,
+    authProvider: d.authProvider ?? 'local',
+  };
 }
 
 @Injectable()
@@ -116,9 +134,10 @@ export class AuthService {
     }
 
     const passwordHash = hashPassword(dto.password);
+    const name = dto.name?.replace(/\s+/g, ' ').trim() || null;
 
     const user = await this.prisma.user.create({
-      data: { email, passwordHash, name: dto.name?.trim() || null },
+      data: { email, passwordHash, name },
     });
 
     return this.issueSession(user.id, userAgent);
@@ -133,7 +152,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    const ok = verifyPassword(user.passwordHash, dto.password);
+    const ok = user.passwordHash && verifyPassword(user.passwordHash, dto.password);
 
     if (!ok) {
       throw new UnauthorizedException('Invalid email or password');
@@ -185,6 +204,57 @@ export class AuthService {
     }
 
     return toUser(user);
+  }
+
+  async loginAs(userId: string, userAgent?: string): Promise<AuthResult> {
+    return this.issueSession(userId, userAgent);
+  }
+
+  async socialLogin(
+    profile: SocialProfile,
+    userAgent?: string,
+  ): Promise<AuthResult> {
+    const { provider, providerId } = profile;
+
+    const existing = await this.prisma.user.findFirst({
+      where: { authProvider: provider, providerId },
+    });
+
+    let userId: string;
+    if (existing) {
+      userId = existing.id;
+    } else {
+      const email =
+        profile.email?.toLowerCase().trim() ||
+        `${profile.provider}_${profile.providerId}@${profile.provider}.local`;
+      const byEmail = await this.prisma.user.findUnique({ where: { email } });
+      if (byEmail) {
+        await this.prisma.user.update({
+          where: { id: byEmail.id },
+          data: {
+            authProvider: provider,
+            providerId,
+            emailVerified: profile.emailVerified,
+            avatarUrl: profile.avatarUrl,
+          },
+        });
+        userId = byEmail.id;
+      } else {
+        const created = await this.prisma.user.create({
+          data: {
+            email,
+            name: profile.name,
+            authProvider: provider,
+            providerId,
+            emailVerified: profile.emailVerified,
+            avatarUrl: profile.avatarUrl,
+          },
+        });
+        userId = created.id;
+      }
+    }
+
+    return this.issueSession(userId, userAgent);
   }
 
   private async issueSession(

@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
+import { OtpService } from './otp.service.js';
 import { JwtGuard } from './guards/jwt-auth.guard.js';
 import { PublicGuard } from './guards/public.guard.js';
 import { RolesGuard } from './guards/roles.guard.js';
@@ -25,7 +26,14 @@ import { CsrfGuard } from '../common/guards/csrf.guard.js';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtGuard, PublicGuard, RolesGuard, CsrfGuard],
+  providers: [
+    AuthService,
+    OtpService,
+    JwtGuard,
+    PublicGuard,
+    RolesGuard,
+    CsrfGuard,
+  ],
   exports: [
     AuthService,
     JwtModule,

@@ -9,6 +9,7 @@ import { PaymentProvider, PaymentStatus } from '../generated/prisma/enums.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { BankTransferProvider } from './providers/bank.provider.js';
 import { CodPaymentProvider } from './providers/cod.provider.js';
+import { AtmMockProvider } from './providers/atm-mock.provider.js';
 import { MockPaymentProvider } from './providers/mock.provider.js';
 import { MomoPaymentProvider } from './providers/momo.provider.js';
 import { PaypalPaymentProvider } from './providers/paypal.provider.js';
@@ -25,14 +26,15 @@ import type {
 } from './types.js';
 
 const PROVIDER_LABELS: Record<string, string> = {
-  mock: 'Thanh toán thử (demo)',
+  mock: 'Thanh toA�n th��- (demo)',
   paypal: 'PayPal',
-  momo: 'Ví MoMo',
+  momo: 'VA- MoMo',
   zalopay: 'ZaloPay',
   vnpay: 'VNPay',
-  stripe: 'Thẻ (Stripe)',
-  bank: 'Chuyển khoản ngân hàng',
-  cod: 'Thanh toán khi nhận hàng (COD)',
+  stripe: 'Th��� (Stripe)',
+  bank: 'Chuy���n kho���n ngA�n hA�ng',
+  cod: 'Thanh toA�n khi nh��-n hA�ng (COD)',
+  'atm-mock': 'ATM/Internet Banking (Mock)',
 };
 
 const PROVIDER_ORDER: Record<string, number> = {
@@ -43,6 +45,7 @@ const PROVIDER_ORDER: Record<string, number> = {
   stripe: 4,
   bank: 5,
   cod: 6,
+  'atm-mock': 6.5,
   mock: 7,
 };
 
@@ -91,6 +94,7 @@ export class PaymentsService {
       mock: new MockPaymentProvider(),
       bank: new BankTransferProvider(get),
       cod: new CodPaymentProvider(),
+      'atm-mock': new AtmMockProvider(),
     };
     if (this.isEnabled('momo')) {
       this.providers['momo'] = new MomoPaymentProvider(get);
@@ -141,7 +145,7 @@ export class PaymentsService {
       case 'stripe':
         return Boolean(get('STRIPE_SECRET_KEY'));
       case 'bank':
-        return true;
+        return Boolean(get('BANK_TRANSFER_INFO'));
       case 'cod':
         return true;
       default:

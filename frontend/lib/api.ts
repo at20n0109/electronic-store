@@ -1,4 +1,5 @@
 import type {
+  AuthMethods,
   AuthResult,
   Cart,
   Category,
@@ -10,6 +11,7 @@ import type {
   PcBuildDetail,
   Product,
   RegisterFields,
+  SessionUser,
 } from './types';
 
 export const API_URL =
@@ -195,15 +197,54 @@ export async function login(fields: LoginFields): Promise<AuthResult> {
   );
 }
 
+export async function getAuthMethods(): Promise<AuthMethods> {
+  return apiFetch<AuthMethods>('/api/v1/auth/methods');
+}
+
+export async function sendOtp(
+  phone: string,
+): Promise<{ ok: true; debugCode?: string }> {
+  return apiFetch<{ ok: true; debugCode?: string }>(
+    '/api/v1/auth/phone/send-otp',
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ phone }),
+    },
+  );
+}
+
+export async function verifyOtp(
+  phone: string,
+  otp: string,
+): Promise<AuthResult> {
+  return storeAuth(
+    await apiFetch<AuthResult>('/api/v1/auth/phone/verify', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ phone, otp }),
+    }),
+  );
+}
+
+export async function startSocialLogin(
+  provider: 'google' | 'facebook' | 'apple',
+): Promise<void> {
+  const { url } = await apiFetch<{ url: string }>(
+    `/api/v1/auth/social/${provider}`,
+  );
+  if (typeof window !== 'undefined') {
+    window.location.href = url;
+  }
+}
+
 export async function logout(): Promise<void> {
   clearStoredAuth();
   await apiFetch<void>('/api/v1/auth/logout', { method: 'POST' });
 }
 
-export async function getMe() {
-  return apiFetch<{ id: string; email: string; name: string | null; role: string }>(
-    '/api/v1/auth/me',
-  );
+export async function getMe(): Promise<SessionUser> {
+  return apiFetch<SessionUser>('/api/v1/auth/me');
 }
 
 export async function getCart() {

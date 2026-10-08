@@ -47,6 +47,11 @@ export { Prisma }
  */
 export type User = Prisma.UserModel
 /**
+ * Model Otp
+ * 
+ */
+export type Otp = Prisma.OtpModel
+/**
  * Model RefreshToken
  * 
  */
@@ -106,3 +111,8 @@ export type Invoice = Prisma.InvoiceModel
  * 
  */
 export type OrderItem = Prisma.OrderItemModel
+/**
+ * Model PaymentMetadata
+ * 
+ */
+export type PaymentMetadata = Prisma.PaymentMetadataModel

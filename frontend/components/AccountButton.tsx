@@ -1,11 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getMe, logout } from '@/lib/api';
-
-type MeUser = { id: string; email: string; name: string | null; role: string };
+import type { SessionUser as MeUser } from '@/lib/types';
 
 function UserIcon({ size = 20 }: { size?: number }) {
   return (
@@ -26,14 +25,17 @@ function LogoutIcon({ size = 16 }: { size?: number }) {
   );
 }
 
+const subscribeNoop = () => () => {};
+
 export function AccountButton() {
   const router = useRouter();
   const [user, setUser] = useState<MeUser | null>(null);
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(subscribeNoop, () => true, () => false);
+  const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setMounted(true);
     let active = true;
     async function load() {
       try {
@@ -52,6 +54,27 @@ export function AccountButton() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!open) return;
+    function onPointerDown(event: MouseEvent) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target as Node)
+      ) {
+        setOpen(false);
+      }
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [open]);
+
   async function onLogout() {
     setBusy(true);
     try {
@@ -61,41 +84,98 @@ export function AccountButton() {
     }
     setUser(null);
     setBusy(false);
+    setOpen(false);
     router.refresh();
   }
 
-  if (!mounted) {
-    return <div className="flex h-10 w-10 items-center justify-center rounded-lg" />;
-  }
+  const label = user ? user.name || user.email.split('@')[0] : 'Đăng nhập';
 
-  if (user) {
-    return (
-      <div className="flex items-center gap-1.5">
-        <button
-          type="button"
-          onClick={onLogout}
-          disabled={busy}
-          title="Đăng xuất"
-          aria-label="Đăng xuất"
-          className="flex h-10 items-center gap-2 rounded-lg px-2 text-sm font-semibold text-amber-400 transition-colors hover:bg-zinc-800 hover:text-amber-300 disabled:opacity-50"
-        >
-          <LogoutIcon />
-        </button>
-        <span className="hidden max-w-[120px] truncate text-sm font-semibold text-amber-400 lg:inline">
-          {user.name || user.email.split('@')[0]}
-        </span>
-      </div>
-    );
+  if (!mounted) {
+    return <div className="flex h-10 items-center gap-2 rounded-lg px-2" />;
   }
 
   return (
-    <Link
-      href="/login"
-      className="flex h-10 items-center gap-2 rounded-lg px-2 text-sm font-semibold text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-red-400"
-      aria-label="Đăng nhập"
-    >
-      <UserIcon />
-      <span className="hidden lg:inline">Đăng nhập</span>
-    </Link>
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className="flex h-10 items-center gap-2 rounded-lg px-2 text-sm font-semibold transition-colors hover:bg-zinc-800 data-open:bg-zinc-800"
+      >
+        <span className={user ? "text-amber-400" : "text-zinc-300"}>
+          <UserIcon />
+        </span>
+        <span className={user ? "max-w-[110px] truncate text-amber-400" : "text-zinc-300"}>
+          {label}
+        </span>
+      </button>
+
+      {open && (
+        <div
+          role="menu"
+          className="absolute right-0 top-full z-50 mt-2 w-56 overflow-hidden rounded-lg border border-zinc-700 bg-zinc-900 py-1 shadow-2xl"
+        >
+          {user ? (
+            <>
+              <div className="flex items-center gap-2 px-4 py-2.5">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-red-600 text-white">
+                  {user.avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={user.avatarUrl}
+                      alt=""
+                      className="h-8 w-8 object-cover"
+                    />
+                  ) : (
+                    <UserIcon size={16} />
+                  )}
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-semibold text-zinc-100">
+                    {user.name || "Khách hàng"}
+                  </span>
+                  <span className="block truncate text-xs text-zinc-400">
+                    {user.phone || user.email}
+                  </span>
+                </span>
+              </div>
+              <div className="my-1 border-t border-zinc-700" />
+              <button
+                type="button"
+                role="menuitem"
+                onClick={onLogout}
+                disabled={busy}
+                className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-medium text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-red-400 disabled:opacity-50"
+              >
+                <LogoutIcon />
+                Đăng xuất
+              </button>
+            </>
+          ) : (
+            <>
+              <Link
+                role="menuitem"
+                href="/login"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-zinc-100 transition-colors hover:bg-zinc-800 hover:text-red-400"
+              >
+                <UserIcon size={16} />
+                Đăng nhập
+              </Link>
+              <Link
+                role="menuitem"
+                href="/register"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-red-400"
+              >
+                <UserIcon size={16} />
+                Đăng ký tài khoản
+              </Link>
+            </>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

@@ -1,6 +1,19 @@
 const esbuild = require('esbuild');
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
+
+if (process.env.PRISMA_MIGRATE_DEPLOY === '1') {
+  process.chdir(path.join(__dirname, '..'));
+  console.log('[vercel-build] applying prisma migrations...');
+  try {
+    execSync('npx prisma migrate deploy', { stdio: 'inherit', env: process.env });
+    console.log('[vercel-build] prisma migrations applied');
+  } catch (err) {
+    console.error('[vercel-build] prisma migrate deploy failed:', err.message);
+    process.exit(1);
+  }
+}
 
 const clientPath = path.join(__dirname, '..', 'dist', 'generated', 'prisma', 'client.js');
 const raw = fs.readFileSync(clientPath, 'utf8');
