@@ -44,7 +44,8 @@ export const PaymentProvider = {
   PAYPAL: 'PAYPAL',
   BANK: 'BANK',
   COD: 'COD',
-  MOCK: 'MOCK'
+  MOCK: 'MOCK',
+  ATM_MOCK: 'ATM_MOCK'
 } as const
 
 export type PaymentProvider = (typeof PaymentProvider)[keyof typeof PaymentProvider]

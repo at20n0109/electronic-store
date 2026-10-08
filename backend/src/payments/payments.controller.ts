@@ -1,7 +1,9 @@
-import { Body, Controller, Get, Headers, HttpCode, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpCode, Param, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { PaymentsService } from './payments.service.js';
 import { CheckoutDto } from './dto/checkout.dto.js';
+import { AtmSubmitDto } from './dto/atm.dto.js';
 import { JwtGuard } from '../auth/guards/jwt-auth.guard.js';
+import { Roles, RolesGuard } from '../auth/guards/roles.guard.js';
 import type { Request, Response } from 'express';
 
 @Controller('payments')
@@ -87,5 +89,28 @@ export class PaymentsController {
   ) {
     const rawBody = (req as unknown as { rawBody?: Buffer }).rawBody;
     return this.payments.handleWebhook(rawBody, signature);
+  }
+
+  @Post(':orderId/atm-submit')
+  @UseGuards(JwtGuard)
+  atmSubmit(
+    @Req() req: Request,
+    @Param('orderId') orderId: string,
+    @Body() dto: AtmSubmitDto,
+  ) {
+    const user = (req as unknown as { user: { id: string } }).user;
+    return this.payments.submitAtm(user.id, orderId, dto);
+  }
+
+  @Post(':paymentId/atm-confirm')
+  @UseGuards(JwtGuard, RolesGuard)
+  @Roles('ADMIN', 'STAFF')
+  atmConfirm(
+    @Req() req: Request,
+    @Param('paymentId') paymentId: string,
+    @Body() body: { note?: string } = {},
+  ) {
+    const user = (req as unknown as { user: { id: string } }).user;
+    return this.payments.confirmAtm(paymentId, user.id, body.note);
   }
 }

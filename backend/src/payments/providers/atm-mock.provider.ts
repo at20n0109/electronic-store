@@ -5,13 +5,13 @@ export class AtmMockProvider implements PaymentProvider {
 
   getDetails(): Record<string, unknown> {
     return {
-      message: 'Thanh to�n ATM/Internet Banking (mock)',
-      note: 'Ngu?i mua nh?p th�ng tin giao d?ch. D? li?u s? du?c m� h�a tru?c khi luu.',
+      message: 'Thanh toán ATM/Internet Banking',
+      note: 'Nhập thông tin giao dịch. Dữ liệu được mã hoá an toàn.',
     };
   }
 
-  async create(order: OrderForPayment): Promise<CheckoutResult> {
-return {
+async create(order: OrderForPayment): Promise<CheckoutResult> {
+    return {
       provider: this.name,
       status: 'pending',
       amount: order.total,
@@ -33,7 +33,7 @@ return {
     };
   }
 
-async verify(): Promise<boolean> {
+  async verify(): Promise<boolean> {
     return true;
   }
 }

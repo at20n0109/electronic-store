@@ -110,10 +110,7 @@ export default function RegisterPage() {
           </label>
           <input
             value={name}
-            onChange={(e) => {
-                setName(e.target.value.slice(0, 60));
-                setNameTouched(true);
-              }}
+            onChange={(e) => setName(e.target.value.slice(0, 60))}
             placeholder="Nguyễn Văn A"
             maxLength={60}
             className={inputClass}

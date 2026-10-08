@@ -1,3 +1,4 @@
+import { AtmMockProvider } from './providers/atm-mock.provider.js';
 import {
   BadRequestException,
   Injectable,
@@ -9,7 +10,8 @@ import { PaymentProvider, PaymentStatus } from '../generated/prisma/enums.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { BankTransferProvider } from './providers/bank.provider.js';
 import { CodPaymentProvider } from './providers/cod.provider.js';
-import { AtmMockProvider } from './providers/atm-mock.provider.js';
+import { CryptoService } from '../crypto/crypto.service.js';
+import type { AtmSubmitDto } from './dto/atm.dto.js';
 import { MockPaymentProvider } from './providers/mock.provider.js';
 import { MomoPaymentProvider } from './providers/momo.provider.js';
 import { PaypalPaymentProvider } from './providers/paypal.provider.js';
@@ -26,14 +28,14 @@ import type {
 } from './types.js';
 
 const PROVIDER_LABELS: Record<string, string> = {
-  mock: 'Thanh toA�n th��- (demo)',
+  mock: 'Thanh toán thử (demo)',
   paypal: 'PayPal',
-  momo: 'VA- MoMo',
+  momo: 'Ví MoMo',
   zalopay: 'ZaloPay',
   vnpay: 'VNPay',
-  stripe: 'Th��� (Stripe)',
-  bank: 'Chuy���n kho���n ngA�n hA�ng',
-  cod: 'Thanh toA�n khi nh��-n hA�ng (COD)',
+  stripe: 'Thẻ (Stripe)',
+  bank: 'Chuyển khoản ngân hàng',
+  cod: 'Thanh toán khi nhận hàng (COD)',
   'atm-mock': 'ATM/Internet Banking (Mock)',
 };
 
@@ -88,6 +90,7 @@ export class PaymentsService {
   constructor(
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
+    private readonly crypto: CryptoService,
   ) {
     const get = (key: string) => this.config.get<string>(key);
     this.providers = {
@@ -145,7 +148,7 @@ export class PaymentsService {
       case 'stripe':
         return Boolean(get('STRIPE_SECRET_KEY'));
       case 'bank':
-        return Boolean(get('BANK_TRANSFER_INFO'));
+        return true;
       case 'cod':
         return true;
       default:
@@ -160,6 +163,7 @@ export class PaymentsService {
     details?: Record<string, unknown>;
   }> {
     return Object.keys(this.providers)
+      .filter((name) => name !== 'mock')
       .sort((a, b) => (PROVIDER_ORDER[a] ?? 99) - (PROVIDER_ORDER[b] ?? 99))
       .map((name) => {
         const provider = this.providers[name] as PaymentProviderInterface & {
@@ -575,6 +579,115 @@ export class PaymentsService {
       transactionId,
       payload,
     );
+  }
+
+  async submitAtm(userId: string, orderId: string, data: AtmSubmitDto) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId, userId },
+      include: { payment: true },
+    });
+    if (!order) throw new NotFoundException('Order not found');
+    if (order.status === 'PAID') {
+      return {
+        ok: true,
+        orderId: order.id,
+        status: order.status,
+        paymentId: order.payment?.id,
+      };
+    }
+
+    const toEncrypt = JSON.stringify({
+      bank: data.bank,
+      cardNumber: data.cardNumber,
+      transRef: data.transRef,
+      amount: data.amount,
+      timestamp: data.timestamp,
+      note: data.note ?? null,
+    });
+
+    const enc = this.crypto.encrypt(toEncrypt);
+    const [prefix, iv, tag, ct] = enc.split(':');
+    const encryptedData = [prefix, iv, ct].join(':');
+    const authTag = tag ?? null;
+
+    const payment = order.payment
+      ? await this.prisma.payment.update({
+          where: { id: order.payment.id },
+          data: {
+            provider: PaymentProvider.ATM_MOCK,
+            status: PaymentStatus.PENDING,
+          },
+        })
+      : await this.prisma.payment.create({
+          data: {
+            orderId: order.id,
+            provider: PaymentProvider.ATM_MOCK,
+            status: PaymentStatus.PENDING,
+            amount: order.total,
+            currency: 'VND',
+          },
+        });
+
+    await this.prisma.paymentMetadata.upsert({
+      where: { orderId },
+      create: {
+        orderId,
+        paymentId: payment.id,
+        provider: 'atm-mock',
+        encryptedData,
+        iv,
+        authTag,
+        status: 'pending',
+      },
+      update: {
+        paymentId: payment.id,
+        provider: 'atm-mock',
+        encryptedData,
+        iv,
+        authTag,
+        status: 'pending',
+        confirmedAt: null,
+        confirmedBy: null,
+        note: null,
+      },
+    });
+
+    return { ok: true, orderId, paymentId: payment.id, status: 'pending' };
+  }
+
+  async confirmAtm(paymentId: string, confirmedBy: string, note?: string) {
+    const meta = await this.prisma.paymentMetadata.findFirst({
+      where: { paymentId },
+    });
+    if (!meta) throw new NotFoundException('Payment metadata not found');
+    if (meta.status === 'confirmed') {
+      return { ok: true, alreadyConfirmed: true };
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.paymentMetadata.update({
+        where: { id: meta.id },
+        data: {
+          status: 'confirmed',
+          confirmedAt: new Date(),
+          confirmedBy,
+          note: note ?? null,
+        },
+      });
+      const payment = await tx.payment.findUnique({ where: { id: paymentId } });
+      if (payment?.orderId) {
+        await tx.order.update({
+          where: { id: payment.orderId },
+          data: { status: 'PAID', paidAt: new Date() },
+        });
+        await tx.payment.update({
+          where: { id: payment.id },
+          data: { status: PaymentStatus.SUCCEEDED },
+        });
+      }
+    });
+
+    return { ok: true, status: 'confirmed' };
   }
 
   private toPrismaProvider(name: string): PaymentProvider {

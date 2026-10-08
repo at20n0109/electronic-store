@@ -19,7 +19,7 @@ interface PlacedOrder {
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const { cart } = useCart();
+  const { cart, refresh } = useCart();
   const [fields, setFields] = useState<CreateOrderFields>({
     receiverName: '',
     receiverPhone: '',
@@ -29,7 +29,7 @@ export default function CheckoutPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [methods, setMethods] = useState<PaymentMethod[]>([]);
-  const [provider, setProvider] = useState<string | undefined>('mock');
+  const [provider, setProvider] = useState<string | undefined>(undefined);
   const [placed, setPlaced] = useState<PlacedOrder | null>(null);
 
   useEffect(() => {
@@ -46,7 +46,7 @@ export default function CheckoutPage() {
       .catch(() => setMethods([]));
   }, []);
 
-  if (cart?.itemCount === 0) {
+  if (!placed && cart?.itemCount === 0) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-16 text-center">
         <p className="text-zinc-600">Giỏ hàng của bạn đang trống.</p>
@@ -66,6 +66,7 @@ export default function CheckoutPage() {
     setError('');
     try {
       const order = await createOrder({ ...fields, note });
+      void refresh();
       const result = (await checkout(order.id, provider)) as {
         checkoutUrl?: string;
         clientSecret?: string;
