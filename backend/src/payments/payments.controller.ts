@@ -91,6 +91,13 @@ export class PaymentsController {
     return this.payments.handleWebhook(rawBody, signature);
   }
 
+  @Get('atm/submissions')
+  @UseGuards(JwtGuard, RolesGuard)
+  @Roles('ADMIN', 'STAFF')
+  atmSubmissions(@Query('status') status?: string) {
+    return this.payments.listAtmSubmissions(status);
+  }
+
   @Post(':orderId/atm-submit')
   @UseGuards(JwtGuard)
   atmSubmit(

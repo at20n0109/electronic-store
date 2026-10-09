@@ -141,6 +141,17 @@ export function AccountButton() {
                 </span>
               </div>
               <div className="my-1 border-t border-zinc-700" />
+              {(user.role === 'ADMIN' || user.role === 'STAFF') && (
+                <Link
+                  role="menuitem"
+                  href="/admin/atm"
+                  onClick={() => setOpen(false)}
+                  className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-zinc-100 transition-colors hover:bg-zinc-800 hover:text-red-400"
+                >
+                  <UserIcon size={16} />
+                  Duyệt giao dịch ATM
+                </Link>
+              )}
               <button
                 type="button"
                 role="menuitem"

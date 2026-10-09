@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useCart } from '@/context/CartContext';
-import { checkout, createOrder, getPaymentMethods } from '@/lib/api';
+import { checkout, createOrder, getPaymentMethods, submitAtm } from '@/lib/api';
 import type { CreateOrderFields, PaymentMethod } from '@/lib/api';
 
 export const dynamic = 'force-dynamic';
@@ -62,6 +62,14 @@ export default function CheckoutPage() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (fields.receiverName.trim().length < 2) {
+      setError('Vui lòng nhập đúng họ tên khách hàng.');
+      return;
+    }
+    if (!/^\d{8,15}$/.test(fields.receiverPhone)) {
+      setError('Số điện thoại phải gồm 8-15 chữ số.');
+      return;
+    }
     setBusy(true);
     setError('');
     try {
@@ -113,6 +121,9 @@ export default function CheckoutPage() {
   const subtotal = cart?.subtotal ?? 0;
 
   if (placed) {
+    if (placed.provider === 'atm-mock') {
+      return <AtmMockForm placed={placed} />;
+    }
     return <PlacedView placed={placed} />;
   }
 
@@ -130,7 +141,10 @@ export default function CheckoutPage() {
           <input
             value={fields.receiverName}
             onChange={(e) =>
-              setFields({ ...fields, receiverName: e.target.value })
+              setFields({
+                ...fields,
+                receiverName: e.target.value.replace(/[^\p{L}\s'.-]/gu, ''),
+              })
             }
             required
             className="w-full rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-200 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
@@ -143,8 +157,14 @@ export default function CheckoutPage() {
           </label>
           <input
             value={fields.receiverPhone}
+            type="tel"
+            inputMode="numeric"
+            maxLength={15}
             onChange={(e) =>
-              setFields({ ...fields, receiverPhone: e.target.value })
+              setFields({
+                ...fields,
+                receiverPhone: e.target.value.replace(/[^\d]/g, ''),
+              })
             }
             required
             className="w-full rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-200 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
@@ -371,6 +391,191 @@ function PlacedView({ placed }: { placed: PlacedOrder }) {
           Tiếp tục mua sắm
         </Link>
       </div>
+    </div>
+  );
+}
+
+function defaultLocalDateTime(): string {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+}
+
+const atmInputClass =
+  'w-full rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-200 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50';
+
+function AtmMockForm({ placed }: { placed: PlacedOrder }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [done, setDone] = useState(false);
+  const [form, setForm] = useState({
+    bank: '',
+    cardNumber: '',
+    transRef: '',
+    amount: placed.amount !== undefined ? String(placed.amount) : '',
+    timestamp: defaultLocalDateTime(),
+    note: '',
+  });
+
+  function update(key: keyof typeof form, value: string) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.bank.trim() || !form.cardNumber.trim() || !form.transRef.trim()) {
+      setError('Vui lòng nhập đầy đủ ngân hàng, số tài khoản và mã giao dịch.');
+      return;
+    }
+    if (!/^\d+$/.test(form.amount) || Number(form.amount) <= 0) {
+      setError('Số tiền không hợp lệ.');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    try {
+      await submitAtm(placed.orderId, {
+        bank: form.bank.trim(),
+        cardNumber: form.cardNumber.trim(),
+        transRef: form.transRef.trim(),
+        amount: Number(form.amount),
+        timestamp: form.timestamp,
+        note: form.note.trim() || undefined,
+      });
+      setDone(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Gửi thông tin thất bại');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (done) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-16 text-center">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-3xl text-green-600 dark:bg-green-900/40 dark:text-green-400">
+          ✓
+        </div>
+        <h1 className="font-heading mt-6 text-2xl font-bold text-zinc-900 dark:text-zinc-50">
+          Đã gửi thông tin giao dịch
+        </h1>
+        <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">
+          Đơn hàng đang chờ nhân viên xác nhận. Trạng thái sẽ cập nhật ở hoá đơn.
+        </p>
+        <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+          <Link
+            href={`/invoice/${placed.orderId}`}
+            className="flex h-12 w-full items-center justify-center rounded-xl bg-red-600 px-6 text-sm font-semibold text-white transition-colors hover:bg-red-500 sm:w-auto"
+          >
+            Xem hoá đơn
+          </Link>
+          <Link
+            href="/"
+            className="flex h-12 w-full items-center justify-center rounded-xl border border-zinc-300 px-6 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900 sm:w-auto"
+          >
+            Tiếp tục mua sắm
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-auto max-w-2xl px-4 py-10">
+      <h1 className="font-heading text-2xl font-bold text-zinc-900 dark:text-zinc-50">
+        Thanh toán ATM / Internet Banking
+      </h1>
+      <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+        Nhập thông tin giao dịch bạn đã thực hiện. Dữ liệu được mã hoá an toàn.
+      </p>
+
+      <form
+        onSubmit={onSubmit}
+        className="mt-6 space-y-5 rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900"
+      >
+        <div>
+          <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
+            Ngân hàng
+          </label>
+          <input
+            value={form.bank}
+            onChange={(e) => update('bank', e.target.value)}
+            required
+            maxLength={64}
+            className={atmInputClass}
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
+            Số tài khoản/thẻ
+          </label>
+          <input
+            value={form.cardNumber}
+            onChange={(e) => update('cardNumber', e.target.value.replace(/[^\d]/g, ''))}
+            required
+            maxLength={32}
+            inputMode="numeric"
+            className={atmInputClass}
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
+            Mã giao dịch
+          </label>
+          <input
+            value={form.transRef}
+            onChange={(e) => update('transRef', e.target.value)}
+            required
+            maxLength={64}
+            className={atmInputClass}
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
+            Số tiền chuyển (VND)
+          </label>
+          <input
+            value={form.amount}
+            onChange={(e) => update('amount', e.target.value.replace(/[^\d]/g, ''))}
+            required
+            inputMode="numeric"
+            className={atmInputClass}
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
+            Thời gian chuyển
+          </label>
+          <input
+            type="datetime-local"
+            value={form.timestamp}
+            onChange={(e) => update('timestamp', e.target.value)}
+            required
+            className={atmInputClass}
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
+            Nội dung chuyển khoản
+          </label>
+          <input
+            value={form.note}
+            onChange={(e) => update('note', e.target.value)}
+            maxLength={200}
+            className={atmInputClass}
+          />
+        </div>
+
+        {error && <p className="text-sm text-red-600">{error}</p>}
+
+        <button
+          type="submit"
+          disabled={busy}
+          className="flex h-12 w-full items-center justify-center rounded-xl bg-red-600 text-sm font-semibold text-white transition-colors hover:bg-red-500 disabled:opacity-50"
+        >
+          {busy ? 'Đang gửi...' : 'Gửi thông tin giao dịch'}
+        </button>
+      </form>
     </div>
   );
 }

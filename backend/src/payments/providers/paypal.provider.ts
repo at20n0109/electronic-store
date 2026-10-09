@@ -13,6 +13,7 @@ export class PaypalPaymentProvider implements PaymentProvider {
   readonly name = 'paypal';
   private readonly clientId: string;
   private readonly secret: string;
+  private readonly mode: string;
   private readonly api: string;
   private readonly returnUrl: string;
   private readonly cancelUrl: string;
@@ -22,6 +23,7 @@ export class PaypalPaymentProvider implements PaymentProvider {
 
   constructor(configGetter: (key: string) => string | undefined) {
     const mode = (configGetter('PAYPAL_MODE') ?? 'sandbox').toLowerCase();
+    this.mode = mode === 'live' ? 'live' : 'sandbox';
     this.clientId = configGetter('PAYPAL_CLIENT_ID') ?? '';
     this.secret = configGetter('PAYPAL_SECRET') ?? '';
     this.currency = (configGetter('PAYPAL_CURRENCY') ?? 'USD').toUpperCase();
@@ -29,6 +31,10 @@ export class PaypalPaymentProvider implements PaymentProvider {
     this.api = mode === 'live' ? LIVE_API : SANDBOX_API;
     this.returnUrl = configGetter('PAYPAL_RETURN_URL') ?? '';
     this.cancelUrl = configGetter('PAYPAL_CANCEL_URL') ?? '';
+  }
+
+  getDetails(): Record<string, unknown> {
+    return { mode: this.mode };
   }
 
   private async getToken(): Promise<string> {

@@ -1,5 +1,5 @@
 -- CreateTable
-CREATE TABLE "PaymentMetadata" (
+CREATE TABLE IF NOT EXISTS "PaymentMetadata" (
     "id" TEXT NOT NULL,
     "orderId" TEXT NOT NULL,
     "paymentId" TEXT NOT NULL,
@@ -18,13 +18,13 @@ CREATE TABLE "PaymentMetadata" (
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "PaymentMetadata_orderId_key" ON "PaymentMetadata"("orderId");
+CREATE UNIQUE INDEX IF NOT EXISTS "PaymentMetadata_orderId_key" ON "PaymentMetadata"("orderId");
 
 -- CreateIndex
-CREATE INDEX "PaymentMetadata_paymentId_idx" ON "PaymentMetadata"("paymentId");
+CREATE INDEX IF NOT EXISTS "PaymentMetadata_paymentId_idx" ON "PaymentMetadata"("paymentId");
 
 -- CreateIndex
-CREATE INDEX "PaymentMetadata_status_idx" ON "PaymentMetadata"("status");
+CREATE INDEX IF NOT EXISTS "PaymentMetadata_status_idx" ON "PaymentMetadata"("status");
 
 -- AlterEnum: add ATM_MOCK to PaymentProvider
 ALTER TYPE "PaymentProvider" ADD VALUE IF NOT EXISTS 'ATM_MOCK';

@@ -346,6 +346,78 @@ export async function getVnpayReturn(
   });
 }
 
+export interface AtmSubmitFields {
+  bank: string;
+  cardNumber: string;
+  transRef: string;
+  amount: number;
+  timestamp: string;
+  note?: string;
+}
+
+export async function submitAtm(
+  orderId: string,
+  fields: AtmSubmitFields,
+): Promise<{ ok: boolean; orderId: string; paymentId: string; status: string }> {
+  return apiFetch<{ ok: boolean; orderId: string; paymentId: string; status: string }>(
+    `/api/v1/payments/${encodeURIComponent(orderId)}/atm-submit`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(fields),
+    },
+  );
+}
+
+export interface AtmSubmission {
+  id: string;
+  orderId: string;
+  paymentId: string;
+  provider: string;
+  status: string;
+  createdAt: string;
+  confirmedAt: string | null;
+  confirmedBy: string | null;
+  note: string | null;
+  submitted: {
+    bank?: string;
+    cardNumber?: string;
+    transRef?: string;
+    amount?: number;
+    timestamp?: string;
+    note?: string | null;
+  } | null;
+  order: {
+    id: string;
+    status: string;
+    total: number;
+    receiverName: string | null;
+    receiverPhone: string | null;
+  } | null;
+}
+
+export async function getAtmSubmissions(
+  status = 'pending',
+): Promise<AtmSubmission[]> {
+  return apiFetch<AtmSubmission[]>(
+    `/api/v1/payments/atm/submissions?status=${encodeURIComponent(status)}`,
+  );
+}
+
+export async function confirmAtm(
+  paymentId: string,
+  note?: string,
+): Promise<{ ok: boolean; status: string; alreadyConfirmed?: boolean }> {
+  return apiFetch<{ ok: boolean; status: string; alreadyConfirmed?: boolean }>(
+    `/api/v1/payments/${encodeURIComponent(paymentId)}/atm-confirm`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ note }),
+    },
+  );
+}
+
 export async function getMyOrders(): Promise<Order[]> {
   return apiFetch<Order[]>('/api/v1/orders');
 }

@@ -148,7 +148,7 @@ export class PaymentsService {
       case 'stripe':
         return Boolean(get('STRIPE_SECRET_KEY'));
       case 'bank':
-        return true;
+        return false;
       case 'cod':
         return true;
       default:
@@ -606,8 +606,8 @@ export class PaymentsService {
     });
 
     const enc = this.crypto.encrypt(toEncrypt);
-    const [prefix, iv, tag, ct] = enc.split(':');
-    const encryptedData = [prefix, iv, ct].join(':');
+    const [iv, tag] = enc.replace('enc:v1:', '').split(':');
+    const encryptedData = enc;
     const authTag = tag ?? null;
 
     const payment = order.payment
@@ -688,6 +688,58 @@ export class PaymentsService {
     });
 
     return { ok: true, status: 'confirmed' };
+  }
+
+  async listAtmSubmissions(status?: string) {
+    const normalized = status && status !== 'all' ? status : undefined;
+    const rows = await this.prisma.paymentMetadata.findMany({
+      where: normalized ? { status: normalized } : undefined,
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    });
+    if (rows.length === 0) return [];
+
+    const paymentIds = [...new Set(rows.map((row) => row.paymentId))];
+    const payments = await this.prisma.payment.findMany({
+      where: { id: { in: paymentIds } },
+      include: { order: true },
+    });
+    const byId = new Map(payments.map((payment) => [payment.id, payment]));
+
+    return rows.map((meta) => {
+      const order = byId.get(meta.paymentId)?.order;
+      return {
+        id: meta.id,
+        orderId: meta.orderId,
+        paymentId: meta.paymentId,
+        provider: meta.provider,
+        status: meta.status,
+        createdAt: meta.createdAt,
+        confirmedAt: meta.confirmedAt,
+        confirmedBy: meta.confirmedBy,
+        note: meta.note,
+        submitted: this.decodeAtmPayload(meta.encryptedData),
+        order: order
+          ? {
+              id: order.id,
+              status: order.status,
+              total: Number(order.total),
+              receiverName: this.crypto.decrypt(order.receiverName),
+              receiverPhone: this.crypto.decrypt(order.receiverPhone),
+            }
+          : null,
+      };
+    });
+  }
+
+  private decodeAtmPayload(encryptedData: string): unknown {
+    const json = this.crypto.decrypt(encryptedData);
+    if (!json) return null;
+    try {
+      return JSON.parse(json);
+    } catch {
+      return null;
+    }
   }
 
   private toPrismaProvider(name: string): PaymentProvider {
