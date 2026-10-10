@@ -110,9 +110,16 @@ export class UploadsService {
       throw new BadRequestException('Invalid image id');
     }
 
-    const response = await this.s3.send(
-      new GetObjectCommand({ Bucket: this.bucket, Key: `uploads/${id}` }),
-    );
+    let response;
+    try {
+      response = await this.s3.send(
+        new GetObjectCommand({ Bucket: this.bucket, Key: `uploads/${id}` }),
+      );
+    } catch {
+      // R2 signals a missing object by throwing, so a typo'd or purged id is a
+      // 404 rather than an unhandled error.
+      throw new NotFoundException('Image not found');
+    }
     if (!response.Body) {
       throw new NotFoundException('Image not found');
     }
