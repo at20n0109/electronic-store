@@ -5,10 +5,11 @@ import {
   randomBytes,
 } from 'node:crypto';
 
-/** Salt v1: AES-256-GCM, format `enc:v1:iv:tag:ct` (base64url). */
+/** v1: AES-256-GCM, format `enc:v1:iv:tag:ct` (base64url). */
 const PREFIX = 'enc:v1';
 const ALGO = 'aes-256-gcm';
 const IV_BYTES = 12;
+const TAG_BYTES = 16;
 const KEY_BYTES = 32;
 
 @Injectable()
@@ -40,9 +41,13 @@ export class CryptoService {
   }
 
   /**
-   * Decrypts a value produced by {@link encrypt}. Values that are empty or
-   * were stored before encryption was enabled are returned unchanged, so
-   * legacy plaintext rows stay readable.
+   * Decrypts a value produced by {@link encrypt}.
+   *
+   * A value that does not carry the `enc:v1:` prefix is legacy plaintext and is
+   * returned unchanged. A value that carries the prefix but fails the GCM
+   * authentication tag has been tampered with or was encrypted with a different
+   * key — that is a security failure, so it throws rather than silently emitting
+   * ciphertext as if it were plaintext.
    */
   decrypt(input: string | null | undefined): string | null | undefined {
     if (!input || !input.startsWith(`${PREFIX}:`)) return input;
@@ -50,25 +55,37 @@ export class CryptoService {
     // base64url never contains ':', so everything past "enc:v1:"
     // is exactly `iv:tag:ct`.
     const parts = input.slice(PREFIX.length + 1).split(':');
-    if (parts.length !== 3) return input;
+    if (parts.length !== 3) {
+      throw new Error('Ciphertext is malformed (expected iv:tag:ct)');
+    }
     const [ivB64, tagB64, ctB64] = parts;
 
-    try {
-      const decipher = createDecipheriv(
-        ALGO,
-        this.key,
-        Buffer.from(ivB64, 'base64url'),
+    const iv = Buffer.from(ivB64, 'base64url');
+    const tag = Buffer.from(tagB64, 'base64url');
+    const ct = Buffer.from(ctB64, 'base64url');
+
+    // GCM's authentication guarantee depends on the tag being the full length
+    // the mode produces. Accepting a shorter tag would let a truncated
+    // (forged) tag be treated as valid, so both the IV and the tag are length
+    // checked before Node ever sees them.
+    if (iv.length !== IV_BYTES) {
+      throw new Error(`Ciphertext IV must be ${IV_BYTES} bytes, got ${iv.length}`);
+    }
+    if (tag.length !== TAG_BYTES) {
+      throw new Error(
+        `Authentication tag must be ${TAG_BYTES} bytes, got ${tag.length}`,
       );
-      decipher.setAuthTag(Buffer.from(tagB64, 'base64url'));
-      const pt = Buffer.concat([
-        decipher.update(Buffer.from(ctB64, 'base64url')),
-        decipher.final(),
-      ]);
+    }
+
+    try {
+      const decipher = createDecipheriv(ALGO, this.key, iv);
+      decipher.setAuthTag(tag);
+      const pt = Buffer.concat([decipher.update(ct), decipher.final()]);
       return pt.toString('utf8');
     } catch {
-      // Tampered value or wrong key — surface the stored value untouched
-      // rather than crashing read paths.
-      return input;
+      throw new Error(
+        'Ciphertext failed authentication — tampered value or wrong encryption key',
+      );
     }
   }
 }

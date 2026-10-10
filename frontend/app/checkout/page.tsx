@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useCart } from '@/context/CartContext';
-import { checkout, createOrder, getPaymentMethods, submitAtm } from '@/lib/api';
+import { checkout, createOrder, getPaymentMethods, safeNavigate, submitAtm } from '@/lib/api';
 import type { CreateOrderFields, PaymentMethod } from '@/lib/api';
 
 export const dynamic = 'force-dynamic';
@@ -19,7 +19,7 @@ interface PlacedOrder {
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const { cart, refresh } = useCart();
+  const { cart, refresh, loading } = useCart();
   const [fields, setFields] = useState<CreateOrderFields>({
     receiverName: '',
     receiverPhone: '',
@@ -45,6 +45,14 @@ export default function CheckoutPage() {
       })
       .catch(() => setMethods([]));
   }, []);
+
+  if (loading && !placed) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-16 text-center">
+        <p className="text-sm text-zinc-500">Đang tải giỏ hàng...</p>
+      </div>
+    );
+  }
 
   if (!placed && cart?.itemCount === 0) {
     return (
@@ -85,13 +93,11 @@ export default function CheckoutPage() {
       };
 
       if (result.checkoutUrl) {
-        window.location.href = result.checkoutUrl;
-        return;
-      }
-
-      if (result.clientSecret) {
-        // Stripe client integration can be mounted here with @stripe/stripe-js.
-        setError('Stripe is not available in this environment.');
+        // The provider URL is server-issued but still validated before the
+        // browser is handed off to a third-party domain.
+        if (!safeNavigate(result.checkoutUrl)) {
+          setError('Đường dẫn thanh toán không hợp lệ. Vui lòng thử lại.');
+        }
         return;
       }
 
@@ -372,6 +378,32 @@ function PlacedView({ placed }: { placed: PlacedOrder }) {
               </div>
             )}
           </dl>
+          {bank?.accountNumber && placed.amount !== undefined && (
+            <div className="mt-6 border-t border-zinc-200 pt-6 dark:border-zinc-800">
+              <h3 className="font-heading mb-3 text-base font-semibold text-zinc-900 dark:text-zinc-50">
+                Quét mã VietQR để thanh toán
+              </h3>
+              <div className="flex flex-col items-center gap-4 sm:flex-row">
+                {/* eslint-disable-next-line @next/next/no-img-element -- a third-party QR image, deliberately not run through the image optimizer */}
+                <img
+                  src={vietQrUrl(bank.accountNumber, placed.amount, placed.orderId ?? '') ?? ''}
+                  alt="VietQR"
+                  className="h-48 w-48 rounded-xl border border-zinc-200 dark:border-zinc-700"
+                />
+                <div className="text-sm text-zinc-600 dark:text-zinc-400">
+                  <p>
+                    Số tiền: <span className="font-semibold text-red-600">{formatVND(placed.amount)}</span>
+                  </p>
+                  <p className="mt-1">
+                    Nội dung: <span className="font-mono font-semibold text-zinc-900 dark:text-zinc-50">{(placed.orderId ?? '').slice(0, 20)}</span>
+                  </p>
+                  <p className="mt-2 text-xs">
+                    Mở ứng dụng ngân hàng (BIDV, Vietcombank, Techcombank,...) và quét mã này để thanh toán chính xác.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -401,6 +433,26 @@ function defaultLocalDateTime(): string {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
 }
 
+/**
+ * Builds the VietQR image URL. `accountNumber` comes from the API, so it is
+ * validated against a digits-only pattern before being interpolated into a
+ * third-party request.
+ */
+function vietQrUrl(
+  accountNumber: string,
+  amount: number,
+  orderId: string,
+): string | null {
+  if (!/^\d{6,20}$/.test(accountNumber)) return null;
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+  const note = orderId.replace(/[^A-Za-z0-9]/g, '').slice(0, 20);
+  const url = new URL('https://img.vietqr.io/image/BIDV-compact2.png');
+  url.pathname = `/image/BIDV-${accountNumber}-compact2.png`;
+  url.searchParams.set('amount', String(Math.round(amount)));
+  if (note) url.searchParams.set('addInfo', note);
+  return url.toString();
+}
+
 const atmInputClass =
   'w-full rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-200 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50';
 
@@ -410,9 +462,7 @@ function AtmMockForm({ placed }: { placed: PlacedOrder }) {
   const [done, setDone] = useState(false);
   const [form, setForm] = useState({
     bank: '',
-    cardNumber: '',
     transRef: '',
-    amount: placed.amount !== undefined ? String(placed.amount) : '',
     timestamp: defaultLocalDateTime(),
     note: '',
   });
@@ -423,22 +473,19 @@ function AtmMockForm({ placed }: { placed: PlacedOrder }) {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.bank.trim() || !form.cardNumber.trim() || !form.transRef.trim()) {
-      setError('Vui lòng nhập đầy đủ ngân hàng, số tài khoản và mã giao dịch.');
-      return;
-    }
-    if (!/^\d+$/.test(form.amount) || Number(form.amount) <= 0) {
-      setError('Số tiền không hợp lệ.');
+    if (!form.bank.trim() || !form.transRef.trim()) {
+      setError('Vui lòng nhập đầy đủ ngân hàng và mã giao dịch.');
       return;
     }
     setBusy(true);
     setError('');
     try {
+      // Only the bank and transfer reference are submitted. The amount and the
+      // order total are the server's to decide; collecting them here would put
+      // a price the customer can edit into the settlement path.
       await submitAtm(placed.orderId, {
         bank: form.bank.trim(),
-        cardNumber: form.cardNumber.trim(),
         transRef: form.transRef.trim(),
-        amount: Number(form.amount),
         timestamp: form.timestamp,
         note: form.note.trim() || undefined,
       });
@@ -489,6 +536,16 @@ function AtmMockForm({ placed }: { placed: PlacedOrder }) {
         Nhập thông tin giao dịch bạn đã thực hiện. Dữ liệu được mã hoá an toàn.
       </p>
 
+      <p
+        data-testid="atm-amount"
+        className="mt-4 rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300"
+      >
+        Số tiền cần chuyển:{' '}
+        <span className="font-semibold text-red-600">
+          {placed.amount !== undefined ? formatVND(placed.amount) : '—'}
+        </span>
+      </p>
+
       <form
         onSubmit={onSubmit}
         className="mt-6 space-y-5 rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900"
@@ -507,19 +564,6 @@ function AtmMockForm({ placed }: { placed: PlacedOrder }) {
         </div>
         <div>
           <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
-            Số tài khoản/thẻ
-          </label>
-          <input
-            value={form.cardNumber}
-            onChange={(e) => update('cardNumber', e.target.value.replace(/[^\d]/g, ''))}
-            required
-            maxLength={32}
-            inputMode="numeric"
-            className={atmInputClass}
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
             Mã giao dịch
           </label>
           <input
@@ -527,18 +571,6 @@ function AtmMockForm({ placed }: { placed: PlacedOrder }) {
             onChange={(e) => update('transRef', e.target.value)}
             required
             maxLength={64}
-            className={atmInputClass}
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
-            Số tiền chuyển (VND)
-          </label>
-          <input
-            value={form.amount}
-            onChange={(e) => update('amount', e.target.value.replace(/[^\d]/g, ''))}
-            required
-            inputMode="numeric"
             className={atmInputClass}
           />
         </div>

@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Req, Res, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, ParseUUIDPipe, Req, Res, UseGuards } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { InvoicesService } from './invoices.service.js';
 import { JwtGuard } from '../auth/guards/jwt-auth.guard.js';
@@ -9,7 +9,10 @@ export class InvoicesController {
 
   @Get('orders/:id')
   @UseGuards(JwtGuard)
-  getByOrder(@Req() req: Request, @Param('id') id: string) {
+  getByOrder(
+    @Req() req: Request,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
     const user = (req as unknown as { user: { id: string } }).user;
     return this.invoices.getOrCreate(user.id, id);
   }
@@ -18,7 +21,7 @@ export class InvoicesController {
   @UseGuards(JwtGuard)
   async pdf(
     @Req() req: Request,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Res() res: Response,
   ) {
     const user = (req as unknown as { user: { id: string } }).user;

@@ -70,13 +70,10 @@ export class UploadsService {
     return { key, uploadUrl, url: this.public(key) };
   }
 
-  async getPresignedDownload(key: string) {
-    const command = new GetObjectCommand({ Bucket: this.bucket, Key: key });
-    const url = await getSignedUrl(this.s3, command, {
-      expiresIn: this.signedTtl,
-    });
-    return { key, url };
-  }
+  // Download signing is intentionally absent: a presign that takes an
+  // arbitrary key with no authorization check is an unrestricted object read
+  // primitive. Invoices download through download(), which is only reached
+  // after an ownership check in InvoicesService.getPdf.
 
   publicUrl(key: string): string {
     return this.public(key);

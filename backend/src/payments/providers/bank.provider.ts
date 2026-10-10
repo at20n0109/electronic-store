@@ -19,7 +19,16 @@ export class BankTransferProvider implements PaymentProvider {
   private readonly info: BankAccountInfo;
 
   constructor(configGetter: (key: string) => string | undefined) {
-    this.info = BankTransferProvider.parse(configGetter('BANK_TRANSFER_INFO'));
+    const configured = BankTransferProvider.parse(
+      configGetter('BANK_TRANSFER_INFO'),
+    );
+    if (!configured.accountNumber) {
+      throw new Error(
+        'BANK_TRANSFER_INFO must be valid JSON containing bank, ' +
+          'accountName and accountNumber. Store no account details in code.',
+      );
+    }
+    this.info = configured;
   }
 
   static parse(raw: string | undefined): BankAccountInfo {

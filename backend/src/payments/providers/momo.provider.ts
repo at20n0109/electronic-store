@@ -98,7 +98,7 @@ export class MomoPaymentProvider implements PaymentProvider {
       requestType: this.requestType,
       lang: 'vi',
     };
-    params.sig = this.sign(params);
+    params.signature = this.sign(params);
 
     const res = await fetch(this.endpoint, {
       method: 'POST',

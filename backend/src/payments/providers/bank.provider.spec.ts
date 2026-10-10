@@ -43,9 +43,26 @@ describe('BankTransferProvider', () => {
     });
   });
 
-  it('tolerates a missing or malformed BANK_TRANSFER_INFO', async () => {
-    const provider = new BankTransferProvider(() => undefined);
-    const result = await provider.create(order as never);
-    expect(result.status).toBe('pending');
+  it('refuses to start with a missing BANK_TRANSFER_INFO', () => {
+    // A hardcoded fallback would put real bank routing details in source, so
+    // the provider must fail fast instead.
+    expect(() => new BankTransferProvider(() => undefined)).toThrow(
+      /BANK_TRANSFER_INFO/,
+    );
+  });
+
+  it('refuses to start when BANK_TRANSFER_INFO has no account number', () => {
+    expect(
+      () =>
+        new BankTransferProvider(() =>
+          JSON.stringify({ bank: 'Vietcombank', accountName: 'PC Store' }),
+        ),
+    ).toThrow(/BANK_TRANSFER_INFO/);
+  });
+
+  it('refuses to start when BANK_TRANSFER_INFO is malformed JSON', () => {
+    expect(() => new BankTransferProvider(() => 'not-json')).toThrow(
+      /BANK_TRANSFER_INFO/,
+    );
   });
 });

@@ -196,7 +196,9 @@ async function exchangeFacebook(
     provider: 'facebook',
     providerId: me.id,
     email: me.email,
-    emailVerified: Boolean(me.email),
+    // The Graph API can return an email address that the user never verified
+    // at Facebook, so it must not be trusted to link a local account.
+    emailVerified: false,
     name: me.name,
     avatarUrl: me.picture?.data?.url,
   };

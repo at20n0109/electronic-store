@@ -60,7 +60,9 @@ services:
       PAYPAL_CANCEL_URL: https://localhost/checkout
       PAYPAL_CURRENCY: USD
       PAYPAL_USD_RATE: "25000"
-      ENCRYPTION_KEY: REMOVED-ENCRYPTION-KEY-ROTATE-IMMEDIATELY=
+      # Secrets are never committed here. Compose reads this from the
+      # environment (or a git-ignored .env) and fails loudly when it is unset.
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?Set ENCRYPTION_KEY in your environment before starting this stack}
       PAYMENT_VNPAY_RETURN_URL: https://localhost/payment/return
       NEXT_PUBLIC_APP_URL: https://localhost
     restart: unless-stopped

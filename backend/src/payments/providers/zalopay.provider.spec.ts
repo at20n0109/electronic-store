@@ -2,9 +2,11 @@ import { createHmac } from 'node:crypto';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ZalopayPaymentProvider } from './zalopay.provider.js';
 
-const APP_ID = '2553';
-const KEY1 = 'REMOVED-TEST-ONLY-SECRET';
-const KEY2 = 'REMOVED-TEST-ONLY-SECRET';
+// Test fixtures only. Deliberately self-describing placeholders so a secret
+// scanner cannot mistake them for a real credential.
+const APP_ID = 'TEST-ONLY-ZALOPAY-APP-ID';
+const KEY1 = 'TEST-ONLY-ZALOPAY-KEY1-NOT-A-REAL-SECRET';
+const KEY2 = 'TEST-ONLY-ZALOPAY-KEY2-NOT-A-REAL-SECRET';
 const CALLBACK_URL = 'https://app/api/v1/payments/zalopay/callback';
 const REDIRECT_URL = 'https://app/api/v1/payments/zalopay/return';
 

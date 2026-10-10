@@ -8,27 +8,49 @@ export const serverApiUrl =
   process.env.NEXT_PUBLIC_BACKEND_URL ??
   'http://127.0.0.1:3001';
 
+/**
+ * Server-side fetch that forwards the request cookies so the browser session
+ * authenticates the call. The raw upstream error body is never surfaced; the
+ * caller only learns that the request failed.
+ */
 export async function serverFetch<T>(
   path: string,
   init?: RequestInit,
-): Promise<T> {
+): Promise<T | null> {
   const cookieStore = await cookies();
+  const cookie = cookieStore.toString();
+  const csrf = cookie
+    .split(';')
+    .map((part) => part.trim())
+    .find((part) => part.startsWith('csrf_token='));
+  const csrfValue = csrf
+    ? decodeURIComponent(csrf.slice('csrf_token='.length))
+    : null;
+
   const res = await fetch(`${serverApiUrl}${path}`, {
     cache: 'no-store',
     ...init,
     headers: {
-      cookie: cookieStore.toString(),
+      ...(cookie ? { cookie } : {}),
+      ...(csrfValue && init?.method && init.method !== 'GET'
+        ? { 'x-csrf-token': csrfValue }
+        : {}),
       ...(init?.headers ?? {}),
     },
   });
 
-  if (!res.ok) {
-    const detail = await res.text().catch(() => '');
-    throw new Error(`API request failed: ${res.status} ${path}${detail ? ` - ${detail}` : ''}`);
-  }
-
+  if (!res.ok) return null;
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
+}
+
+export function getSessionServer() {
+  return serverFetch<{
+    id: string;
+    email: string;
+    name: string | null;
+    role: string;
+  }>('/api/v1/auth/me');
 }
 
 export function getInvoiceServer(orderId: string) {

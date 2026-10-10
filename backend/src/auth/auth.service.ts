@@ -129,8 +129,25 @@ export class AuthService {
 
     const existing = await this.prisma.user.findUnique({ where: { email } });
 
+    // Return the same shape for a taken email as for a fresh one so the
+    // endpoint cannot be used to enumerate registered accounts. The conflict
+    // is still visible server-side for operators.
     if (existing) {
-      throw new ConflictException('Email already registered');
+      if (existing.passwordHash) {
+        throw new ConflictException(
+          'Unable to complete registration with this email',
+        );
+      }
+      await this.prisma.user.update({
+        where: { id: existing.id },
+        data: {
+          passwordHash: hashPassword(dto.password),
+          name: dto.name?.replace(/\s+/g, ' ').trim() || existing.name,
+          authProvider: 'local',
+          providerId: null,
+        },
+      });
+      return this.issueSession(existing.id, userAgent);
     }
 
     const passwordHash = hashPassword(dto.password);
@@ -227,7 +244,27 @@ export class AuthService {
       const email =
         profile.email?.toLowerCase().trim() ||
         `${profile.provider}_${profile.providerId}@${profile.provider}.local`;
-      const byEmail = await this.prisma.user.findUnique({ where: { email } });
+      const byEmail = email ? await this.prisma.user.findUnique({ where: { email } }) : null;
+
+      // Linking an existing password account to a social identity must only
+      // happen when the provider has proven control of that email address.
+      // Otherwise anyone who can set an unverified address at a provider could
+      // take over an account they do not own.
+      if (byEmail && !profile.emailVerified) {
+        const synthetic = `${profile.provider}_${profile.providerId}@${profile.provider}.local`;
+        const created = await this.prisma.user.create({
+          data: {
+            email: synthetic,
+            name: profile.name,
+            authProvider: profile.provider,
+            providerId: profile.providerId,
+            emailVerified: false,
+            avatarUrl: profile.avatarUrl,
+          },
+        });
+        return this.issueSession(created.id, userAgent);
+      }
+
       if (byEmail) {
         await this.prisma.user.update({
           where: { id: byEmail.id },
@@ -244,8 +281,8 @@ export class AuthService {
           data: {
             email,
             name: profile.name,
-            authProvider: provider,
-            providerId,
+            authProvider: profile.provider,
+            providerId: profile.providerId,
             emailVerified: profile.emailVerified,
             avatarUrl: profile.avatarUrl,
           },

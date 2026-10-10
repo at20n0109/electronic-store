@@ -5,8 +5,10 @@ import {
   vnpayOrderIdFromTxnRef,
 } from './vnpay.provider.js';
 
-const TMN_CODE = 'NON3GCUI';
-const HASH_SECRET = 'REMOVED-TEST-ONLY-SECRET';
+// Test fixtures only. Deliberately self-describing placeholders so a secret
+// scanner cannot mistake them for a real credential.
+const TMN_CODE = 'TESTONLYVNPAYTMN';
+const HASH_SECRET = 'TEST-ONLY-VNPAY-HASH-SECRET-NOT-A-REAL-SECRET';
 const RETURN_URL = 'https://app/payment/return';
 
 const phpEncode = (value: string) =>

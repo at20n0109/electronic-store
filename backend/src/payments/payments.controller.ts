@@ -1,9 +1,23 @@
-import { Body, Controller, Get, Headers, HttpCode, Param, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Headers,
+  HttpCode,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Query,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
 import { PaymentsService } from './payments.service.js';
 import { CheckoutDto } from './dto/checkout.dto.js';
 import { AtmSubmitDto } from './dto/atm.dto.js';
 import { JwtGuard } from '../auth/guards/jwt-auth.guard.js';
 import { Roles, RolesGuard } from '../auth/guards/roles.guard.js';
+import { Public } from '../common/decorators/public.decorator.js';
 import type { Request, Response } from 'express';
 
 @Controller('payments')
@@ -23,6 +37,7 @@ export class PaymentsController {
   }
 
   @Get('methods')
+  @Public()
   methods() {
     return this.payments.availableMethods();
   }
@@ -59,6 +74,7 @@ export class PaymentsController {
   }
 
   @Get('zalopay/return')
+  @Public()
   async zalopayReturn(
     @Query() query: Record<string, string>,
     @Res() res: Response,
@@ -69,20 +85,24 @@ export class PaymentsController {
 
   @Post('zalopay/callback')
   @HttpCode(200)
+  @Public()
   async zalopayCallback(@Req() req: Request) {
     const rawBody = (req as unknown as { rawBody?: Buffer }).rawBody;
     return this.payments.handleZalopayCallback(rawBody);
   }
 
-  @Get('vnpay/ipn')
+  // POST only: an IPN is a server-to-server call. A GET lets an attacker
+  // settle an order by simply having the user click a link.
   @Post('vnpay/ipn')
   @HttpCode(200)
+  @Public()
   vnpayIpn(@Query() query: Record<string, string>) {
     return this.payments.handleVnpayIpn(query);
   }
 
   @Post('webhook')
   @HttpCode(200)
+  @Public()
   async webhook(
     @Req() req: Request,
     @Headers('stripe-signature') signature?: string,
@@ -102,7 +122,7 @@ export class PaymentsController {
   @UseGuards(JwtGuard)
   atmSubmit(
     @Req() req: Request,
-    @Param('orderId') orderId: string,
+    @Param('orderId', ParseUUIDPipe) orderId: string,
     @Body() dto: AtmSubmitDto,
   ) {
     const user = (req as unknown as { user: { id: string } }).user;
@@ -114,7 +134,7 @@ export class PaymentsController {
   @Roles('ADMIN', 'STAFF')
   atmConfirm(
     @Req() req: Request,
-    @Param('paymentId') paymentId: string,
+    @Param('paymentId', ParseUUIDPipe) paymentId: string,
     @Body() body: { note?: string } = {},
   ) {
     const user = (req as unknown as { user: { id: string } }).user;

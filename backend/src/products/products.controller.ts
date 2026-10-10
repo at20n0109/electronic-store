@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -16,23 +17,27 @@ import { QueryProductsDto } from './dto/query-products.dto.js';
 import { JwtGuard } from '../auth/guards/jwt-auth.guard.js';
 import { Roles, RolesGuard } from '../auth/guards/roles.guard.js';
 import { CsrfGuard } from '../common/guards/csrf.guard.js';
+import { Public } from '../common/decorators/public.decorator.js';
 
 @Controller('products')
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
   @Get()
+  @Public()
   findAll(@Query() query: QueryProductsDto) {
     return this.productsService.findAll(query);
   }
 
   @Get('slug/:slug')
+  @Public()
   findBySlug(@Param('slug') slug: string) {
     return this.productsService.findBySlug(slug);
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
+  @Public()
+  findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.productsService.findOne(id);
   }
 
@@ -46,14 +51,14 @@ export class ProductsController {
   @Patch(':id')
   @UseGuards(JwtGuard, RolesGuard, CsrfGuard)
   @Roles('STAFF', 'ADMIN')
-  update(@Param('id') id: string, @Body() dto: UpdateProductDto) {
+  update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateProductDto) {
     return this.productsService.update(id, dto);
   }
 
   @Delete(':id')
   @UseGuards(JwtGuard, RolesGuard, CsrfGuard)
   @Roles('STAFF', 'ADMIN')
-  remove(@Param('id') id: string) {
+  remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.productsService.remove(id);
   }
 }

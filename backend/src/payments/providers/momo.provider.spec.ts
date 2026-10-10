@@ -2,8 +2,11 @@ import { createHmac } from 'node:crypto';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MomoPaymentProvider } from './momo.provider.js';
 
-const SECRET = 'REMOVED-TEST-ONLY-SECRET';
-const ACCESS_KEY = 'REMOVED-TEST-ONLY-ACCESS-KEY';
+// Test fixtures only. These are deliberately self-describing placeholders
+// rather than realistic-looking key material, so a secret scanner cannot
+// mistake them for a real credential.
+const SECRET = 'TEST-ONLY-MOMO-SECRET-KEY-NOT-A-REAL-SECRET';
+const ACCESS_KEY = 'TEST-ONLY-MOMO-ACCESS-KEY';
 
 const order = {
   id: 'order-123',
@@ -101,7 +104,7 @@ describe('MomoPaymentProvider', () => {
       redirectUrl: 'https://app/api/v1/payments/momo/return',
     });
     expect(body.amount).toBe('250000');
-    expect(body.sig).toBeTruthy();
+    expect(body.signature).toBeTruthy();
   });
 
   it('throws when the gateway reports a failure', async () => {

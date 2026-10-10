@@ -94,11 +94,15 @@ export class PaymentsService {
   ) {
     const get = (key: string) => this.config.get<string>(key);
     this.providers = {
-      mock: new MockPaymentProvider(),
+      // Only registered when explicitly opted in for a local sandbox; see
+      // isEnabled('mock').
+      'atm-mock': new AtmMockProvider(),
       bank: new BankTransferProvider(get),
       cod: new CodPaymentProvider(),
-      'atm-mock': new AtmMockProvider(),
     };
+    if (this.isEnabled('mock')) {
+      this.providers['mock'] = new MockPaymentProvider();
+    }
     if (this.isEnabled('momo')) {
       this.providers['momo'] = new MomoPaymentProvider(get);
     }
@@ -120,12 +124,22 @@ export class PaymentsService {
   private defaultProvider(): PaymentProviderInterface {
     const chosen =
       (this.config.get<string>('PAYMENT_PROVIDER') ?? 'mock').toLowerCase();
-    return this.providers[chosen] ?? this.providers['mock'];
+    if (!this.isEnabled(chosen)) {
+      throw new BadRequestException(
+        `Payment provider "${chosen}" is not configured`,
+      );
+    }
+    return this.providers[chosen] ?? this.providers['cod'];
   }
 
   private resolve(name: string | undefined): PaymentProviderInterface {
     if (!name) {
       return this.defaultProvider();
+    }
+    // Only an enabled provider may be selected. This gates out "mock" and
+    // "atm-mock" as well as any provider missing its credentials.
+    if (!this.isEnabled(name.toLowerCase())) {
+      throw new BadRequestException(`Unknown payment provider: ${name}`);
     }
     const provider = this.providers[name.toLowerCase()];
     if (!provider) {
@@ -151,6 +165,15 @@ export class PaymentsService {
         return false;
       case 'cod':
         return true;
+      // Mock providers report success without any cryptographic verification,
+      // so they must never be selectable outside a local, explicitly opted-in
+      // sandbox. Never enable this in production.
+      case 'mock':
+      case 'atm-mock':
+        return (
+          this.config.get<string>('ALLOW_MOCK_PAYMENT') === '1' &&
+          process.env.NODE_ENV !== 'production'
+        );
       default:
         return true;
     }
@@ -215,15 +238,9 @@ export class PaymentsService {
       },
     });
 
-    // Providers that complete immediately (e.g. mock) mark the order paid
-    // right away so the invoice reflects the final state without a webhook.
-    if (payment.status === PaymentStatus.SUCCEEDED && order.status !== 'PAID') {
-      await this.prisma.order.update({
-        where: { id: order.id },
-        data: { status: 'PAID', paidAt: new Date() },
-      });
-    }
-
+    // The order is marked PAID only by markPaid(), i.e. by a provider return/
+    // IPN/webhook path whose signature was actually verified. Never trust the
+    // provider's self-reported 'succeeded' status to move money.
     return {
       paymentId: payment.id,
       provider: result.provider,
@@ -271,11 +288,13 @@ export class PaymentsService {
       throw new NotFoundException('Order not found');
     }
 
-    const verified =
-      typeof this.providers['vnpay']?.verify === 'function'
-        ? await this.providers['vnpay'].verify!(query, toOrderForPayment(order))
-        : true;
-
+    // Signature verification is mandatory. If the provider is not configured,
+    // fail closed: an unverified callback must never be able to settle money.
+    const provider = this.providers['vnpay'];
+    if (!provider?.verify) {
+      throw new BadRequestException('VNPay is not configured');
+    }
+    const verified = await provider.verify(query, toOrderForPayment(order));
     if (!verified) {
       throw new BadRequestException('Invalid payment signature');
     }
@@ -311,11 +330,13 @@ export class PaymentsService {
       return { RspCode: '01', Message: 'Order not found' };
     }
 
-    const verified =
-      typeof this.providers['vnpay']?.verify === 'function'
-        ? await this.providers['vnpay'].verify!(query, toOrderForPayment(order))
-        : true;
-
+    // Signature verification is mandatory. If the provider is not configured,
+    // fail closed: an unverified IPN must never be able to settle money.
+    const provider = this.providers['vnpay'];
+    if (!provider?.verify) {
+      return { RspCode: '97', Message: 'VNPay is not configured' };
+    }
+    const verified = await provider.verify(query, toOrderForPayment(order));
     if (!verified) {
       return { RspCode: '97', Message: 'Invalid checksum' };
     }
@@ -479,6 +500,9 @@ export class PaymentsService {
       throw new NotFoundException('Payment not found');
     }
 
+    // The callback proves the transaction but does not bind it to a payment
+    // row. Ownership is re-established through the provider's own MAC'd
+    // queryStatus call, and the order total is never taken from the request.
     const order = await this.prisma.order.findUnique({
       where: { id: payment.orderId },
       include: { payment: true },
@@ -509,6 +533,40 @@ export class PaymentsService {
     rawBody: Buffer | undefined,
     signature?: string,
   ): Promise<{ received: boolean }> {
+    // Stripe webhook: the signature header is mandatory and the raw body must
+    // have been captured, otherwise signature verification cannot run.
+    if (signature) {
+      if (!rawBody) {
+        return { received: false };
+      }
+      const stripeProvider = this.providers['stripe'];
+      if (!(stripeProvider instanceof StripePaymentProvider)) {
+        return { received: false };
+      }
+      const event = stripeProvider.verifySignature({
+        payload: rawBody,
+        signature,
+        endpointSecret:
+          this.config.get<string>('PAYMENT_WEBHOOK_SECRET') ?? '',
+      });
+
+      if (
+        event &&
+        event.type === 'payment_intent.succeeded'
+      ) {
+        const intent = event.data.object as {
+          id: string;
+          metadata?: { orderId?: string };
+        };
+        if (intent.metadata?.orderId) {
+          await this.markPaidForOrder(intent.metadata.orderId, intent.id);
+        }
+      }
+      return { received: true };
+    }
+
+    // MoMo IPN: verified by HMAC before any business logic runs. A missing
+    // signature header means this is not a Stripe event, so fall through.
     if (!rawBody) {
       return { received: false };
     }
@@ -524,28 +582,6 @@ export class PaymentsService {
     if (momoBody && momoBody.partnerCode && momoBody.resultCode !== undefined) {
       await this.handleMomoIpn(momoBody);
       return { received: true };
-    }
-
-    const stripeProvider = this.providers['stripe'];
-    if (stripeProvider instanceof StripePaymentProvider && signature) {
-      const event = stripeProvider.verifySignature({
-        payload: rawBody,
-        signature: signature ?? '',
-        endpointSecret: this.config.get<string>('PAYMENT_WEBHOOK_SECRET') ?? '',
-      });
-
-      if (
-        event &&
-        event.type === 'payment_intent.succeeded'
-      ) {
-        const intent = event.data.object as {
-          id: string;
-          metadata?: { orderId?: string };
-        };
-        if (intent.metadata?.orderId) {
-          await this.markPaidForOrder(intent.metadata.orderId, intent.id);
-        }
-      }
     }
 
     return { received: true };
@@ -596,11 +632,13 @@ export class PaymentsService {
       };
     }
 
+    // The order total is authoritative: it is read from the order row, never
+    // from the client. Collecting PAN here would drag the app into PCI-DSS
+    // scope, so only a transfer reference and bank name are stored.
     const toEncrypt = JSON.stringify({
       bank: data.bank,
-      cardNumber: data.cardNumber,
       transRef: data.transRef,
-      amount: data.amount,
+      amount: order.total.toString(),
       timestamp: data.timestamp,
       note: data.note ?? null,
     });
@@ -674,8 +712,26 @@ export class PaymentsService {
           note: note ?? null,
         },
       });
-      const payment = await tx.payment.findUnique({ where: { id: paymentId } });
-      if (payment?.orderId) {
+      const payment = await tx.payment.findUnique({
+        where: { id: paymentId },
+        include: { order: true },
+      });
+      if (payment?.orderId && payment.order) {
+        // The transfer amount recorded at submit time is compared against the
+        // authoritative order total. A mismatch means the customer did not
+        // transfer the full amount, so the order must not be settled.
+        const submitted = this.decodeAtmPayload(meta.encryptedData);
+        const submittedAmount = Number(
+          (submitted as { amount?: unknown } | null)?.amount ?? NaN,
+        );
+        if (
+          !Number.isFinite(submittedAmount) ||
+          submittedAmount !== Number(payment.order.total)
+        ) {
+          throw new BadRequestException(
+            'Transferred amount does not match the order total',
+          );
+        }
         await tx.order.update({
           where: { id: payment.orderId },
           data: { status: 'PAID', paidAt: new Date() },
@@ -708,6 +764,15 @@ export class PaymentsService {
 
     return rows.map((meta) => {
       const order = byId.get(meta.paymentId)?.order;
+      const submitted = this.decodeAtmPayload(meta.encryptedData) as {
+        amount?: unknown;
+        bank?: string;
+        transRef?: string;
+        timestamp?: string;
+        note?: unknown;
+      } | null;
+      const submittedAmount = Number(submitted?.amount ?? NaN);
+      const orderTotal = order ? Number(order.total) : NaN;
       return {
         id: meta.id,
         orderId: meta.orderId,
@@ -718,14 +783,19 @@ export class PaymentsService {
         confirmedAt: meta.confirmedAt,
         confirmedBy: meta.confirmedBy,
         note: meta.note,
-        submitted: this.decodeAtmPayload(meta.encryptedData),
+        // Surfacing both figures lets staff see the match before confirming.
+        submitted: submitted ? { ...submitted, amount: submittedAmount } : null,
+        amountMatchesOrder:
+          Number.isFinite(submittedAmount) &&
+          Number.isFinite(orderTotal) &&
+          submittedAmount === orderTotal,
         order: order
           ? {
               id: order.id,
               status: order.status,
-              total: Number(order.total),
-              receiverName: this.crypto.decrypt(order.receiverName),
-              receiverPhone: this.crypto.decrypt(order.receiverPhone),
+              total: orderTotal,
+              receiverName: this.safeDecrypt(order.receiverName),
+              receiverPhone: this.safeDecrypt(order.receiverPhone),
             }
           : null,
       };
@@ -733,10 +803,24 @@ export class PaymentsService {
   }
 
   private decodeAtmPayload(encryptedData: string): unknown {
-    const json = this.crypto.decrypt(encryptedData);
+    let json: string | null | undefined = null;
+    try {
+      json = this.crypto.decrypt(encryptedData);
+    } catch {
+      // A tampered or wrong-key row must not break the staff listing.
+      return null;
+    }
     if (!json) return null;
     try {
       return JSON.parse(json);
+    } catch {
+      return null;
+    }
+  }
+
+  private safeDecrypt(value: string | null): string | null {
+    try {
+      return this.crypto.decrypt(value) ?? null;
     } catch {
       return null;
     }

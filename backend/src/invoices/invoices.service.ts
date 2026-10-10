@@ -9,12 +9,10 @@ import type { InvoiceModel as Invoice } from '../generated/prisma/models/Invoice
 import PDFDocument from 'pdfkit';
 import QRCode from 'qrcode';
 import { PassThrough } from 'node:stream';
+import { randomBytes } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { UploadsService } from '../uploads/uploads.service.js';
 import { CryptoService } from '../crypto/crypto.service.js';
-
-const FREE_SHIPPING_MIN = 300000;
-const SHIPPING_FEE = 30000;
 
 function pad(n: number): string {
   return n.toString().padStart(2, '0');
@@ -82,11 +80,12 @@ export class InvoicesService {
   }
 
   private async nextNumber(orderId: string): Promise<string> {
-    const stamp = formatVNDate(new Date()).replace(/[/: ]/g, '');
     const short = orderId.replace(/-/g, '').slice(0, 8);
-    const number = `INV-${short}-${stamp}`;
-    const duplicate = await this.prisma.invoice.findUnique({ where: { number } });
-    return duplicate ? `${number}-${Math.random().toString(36).slice(2, 6)}` : number;
+    // A per-invoice random suffix removes the read-then-write race where two
+    // concurrent invoices for the same derived number collide on the unique
+    // constraint. A P2002 is still retried once below.
+    const suffix = randomBytes(3).toString('hex');
+    return `INV-${short}-${suffix}`;
   }
 
   private   async generate(order: Order & { items: OrderItem[]; payment: Payment | null }, number: string) {
@@ -128,6 +127,15 @@ export class InvoicesService {
     return { content, filename: `${invoice.number}.pdf` };
   }
 
+  private safeDecrypt(value: string | null): string | null {
+    try {
+      return this.crypto.decrypt(value) ?? '';
+    } catch {
+      // Tampered ciphertext must not produce a PDF containing raw ciphertext.
+      return '[dữ liệu đã bị thay đổi]';
+    }
+  }
+
   private async buildPdf(
     order: Order & { items: OrderItem[]; payment: Payment | null },
     number: string,
@@ -147,9 +155,11 @@ export class InvoicesService {
       ],
     );
 
-    const subtotal = rows.reduce((s, r) => s + r[4], 0);
-    const shipping = subtotal >= FREE_SHIPPING_MIN ? 0 : SHIPPING_FEE;
-    const total = subtotal + shipping;
+    // The order row stores the amounts that were actually charged at checkout;
+    // the invoice must print those, not a recomputation from the line items.
+    const subtotal = order.subtotal.toNumber();
+    const shipping = order.shipping.toNumber();
+    const total = order.total.toNumber();
 
     doc.fontSize(22).text('Hóa đơn bán hàng', { align: 'center' });
     doc.moveDown(0.5);
@@ -166,9 +176,9 @@ export class InvoicesService {
     doc.fontSize(11).text('Khách hàng', { align: 'left' });
     doc
       .fontSize(10)
-      .text(`${this.crypto.decrypt(order.receiverName) ?? ''}`)
-      .text(`SĐT: ${this.crypto.decrypt(order.receiverPhone) ?? ''}`)
-      .text(`Địa chỉ: ${this.crypto.decrypt(order.receiverAddress) ?? ''}`);
+      .text(`${this.safeDecrypt(order.receiverName)}`)
+      .text(`SĐT: ${this.safeDecrypt(order.receiverPhone)}`)
+      .text(`Địa chỉ: ${this.safeDecrypt(order.receiverAddress)}`);
 
     doc.moveDown(2);
     const tableTop = doc.y;

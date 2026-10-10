@@ -1,9 +1,9 @@
 import {
   IsNotEmpty,
-  IsNumber,
   IsOptional,
   IsString,
   MaxLength,
+  MinLength,
 } from 'class-validator';
 
 export class AtmSubmitDto {
@@ -14,19 +14,13 @@ export class AtmSubmitDto {
 
   @IsString()
   @IsNotEmpty()
-  @MaxLength(32)
-  cardNumber!: string;
-
-  @IsString()
-  @IsNotEmpty()
   @MaxLength(64)
   transRef!: string;
 
-  @IsNumber()
-  amount!: number;
-
   @IsString()
   @IsNotEmpty()
+  @MinLength(1)
+  @MaxLength(40)
   timestamp!: string;
 
   @IsOptional()

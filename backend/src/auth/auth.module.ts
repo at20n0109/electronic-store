@@ -5,9 +5,9 @@ import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
 import { OtpService } from './otp.service.js';
 import { JwtGuard } from './guards/jwt-auth.guard.js';
-import { PublicGuard } from './guards/public.guard.js';
 import { RolesGuard } from './guards/roles.guard.js';
 import { CsrfGuard } from '../common/guards/csrf.guard.js';
+import { CoreModule } from '../core/core.module.js';
 
 @Module({
   imports: [
@@ -24,13 +24,13 @@ import { CsrfGuard } from '../common/guards/csrf.guard.js';
         },
       }),
     }),
+    CoreModule,
   ],
   controllers: [AuthController],
   providers: [
     AuthService,
     OtpService,
     JwtGuard,
-    PublicGuard,
     RolesGuard,
     CsrfGuard,
   ],
@@ -38,7 +38,6 @@ import { CsrfGuard } from '../common/guards/csrf.guard.js';
     AuthService,
     JwtModule,
     JwtGuard,
-    PublicGuard,
     RolesGuard,
     CsrfGuard,
   ],

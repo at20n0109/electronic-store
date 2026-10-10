@@ -23,26 +23,27 @@ export const API_URL =
       'http://127.0.0.1:3001')
     : (process.env.NEXT_PUBLIC_API_URL ?? '');
 
-const TOKEN_KEY = 'pcstore_access_token';
-
+/**
+ * The access token is deliberately never persisted in localStorage or any
+ * other JavaScript-readable store. It lives only in the HttpOnly cookie set by
+ * the API, so an XSS payload cannot read it. Every request is credentialed,
+ * which is what actually authenticates the browser session.
+ */
 function csrfHeaders(): HeadersInit | undefined {
   if (typeof document === 'undefined') return undefined;
-  const token = document.cookie
-    .split('; ')
-    .find((value) => value.startsWith('csrf_token='))
-    ?.split('=')[1];
-  return token ? { 'x-csrf-token': decodeURIComponent(token) } : undefined;
-}
-
-function bearerHeaders(): HeadersInit | undefined {
-  if (typeof window === 'undefined') return undefined;
-  const token = window.localStorage.getItem(TOKEN_KEY);
-  return token ? { Authorization: `Bearer ${token}` } : undefined;
-}
-
-export function getAccessToken(): string | null {
-  if (typeof window === 'undefined') return null;
-  return window.localStorage.getItem(TOKEN_KEY);
+  // base64url never contains '=', but a value that does must survive the split.
+  const raw = document.cookie
+    .split(';')
+    .map((part) => part.trim())
+    .find((part) => part.startsWith('csrf_token='));
+  if (!raw) return undefined;
+  const value = raw.slice('csrf_token='.length);
+  if (!value) return undefined;
+  try {
+    return { 'x-csrf-token': decodeURIComponent(value) };
+  } catch {
+    return undefined;
+  }
 }
 
 const AUTH_EVENT = 'pcstore:auth';
@@ -53,20 +54,10 @@ function dispatchAuthEvent(): void {
   }
 }
 
-function storeAuth<T extends AuthResult>(result: T): T {
-  if (typeof window !== 'undefined' && result.accessToken) {
-    window.localStorage.setItem(TOKEN_KEY, result.accessToken);
-    dispatchAuthEvent();
-  }
-  return result;
-}
-
 let refreshInFlight: Promise<boolean> | null = null;
 
 function tryRefreshAuth(): Promise<boolean> {
-  if (typeof document === 'undefined' || !document.cookie.includes('csrf_token=')) {
-    return Promise.resolve(false);
-  }
+  if (typeof document === 'undefined') return Promise.resolve(false);
   if (!refreshInFlight) {
     refreshInFlight = (async () => {
       try {
@@ -77,7 +68,7 @@ function tryRefreshAuth(): Promise<boolean> {
           body: '{}',
         });
         if (!res.ok) return false;
-        storeAuth((await res.json()) as AuthResult);
+        dispatchAuthEvent();
         return true;
       } catch {
         return false;
@@ -90,10 +81,7 @@ function tryRefreshAuth(): Promise<boolean> {
 }
 
 export function clearStoredAuth(): void {
-  if (typeof window !== 'undefined') {
-    window.localStorage.removeItem(TOKEN_KEY);
-    dispatchAuthEvent();
-  }
+  dispatchAuthEvent();
 }
 
 export class ApiError extends Error {
@@ -107,23 +95,36 @@ export class ApiError extends Error {
   }
 }
 
-function extractErrorMessage(status: number, path: string, body: string): string {
+/**
+ * Only validation messages are safe to show verbatim. Anything else is
+ * collapsed to a generic string so backend internals (paths, Prisma text,
+ * error codes) never reach the UI.
+ */
+const SAFE_STATUS_MESSAGES: Record<number, string> = {
+  400: 'Yêu cầu không hợp lệ. Vui lòng kiểm tra lại thông tin.',
+  401: 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.',
+  403: 'Bạn không có quyền thực hiện thao tác này.',
+  404: 'Không tìm thấy dữ liệu bạn yêu cầu.',
+  409: 'Dữ liệu đã tồn tại hoặc xung đột với trạng thái hiện tại.',
+  422: 'Dữ liệu không hợp lệ. Vui lòng kiểm tra lại.',
+  429: 'Bạn thao tác quá nhanh. Vui lòng thử lại sau ít phút.',
+};
+
+function extractErrorMessage(status: number, body: string): string {
+  // ValidationPipe emits string[] in `message`. Only those are forwarded.
   if (body) {
     try {
       const parsed = JSON.parse(body) as { message?: unknown };
       const m = parsed?.message;
-      const text =
-        typeof m === 'string'
-          ? m
-          : m && typeof m === 'object' && typeof (m as { message?: unknown }).message === 'string'
-            ? ((m as { message: string }).message)
-            : null;
-      if (text) return text;
+      if (Array.isArray(m)) {
+        const lines = m.filter((entry): entry is string => typeof entry === 'string');
+        if (lines.length > 0) return lines.join('\n');
+      }
     } catch {
-      // not JSON — fall through
+      // not JSON — fall through to the generic message
     }
   }
-  return `API request failed: ${status} ${path}`;
+  return SAFE_STATUS_MESSAGES[status] ?? 'Đã có lỗi xảy ra. Vui lòng thử lại.';
 }
 
 export async function apiFetch<T>(
@@ -137,7 +138,6 @@ export async function apiFetch<T>(
     ...init,
     headers: {
       ...csrfHeaders(),
-      ...bearerHeaders(),
       ...init?.headers,
     },
   });
@@ -148,7 +148,7 @@ export async function apiFetch<T>(
 
   if (!res.ok) {
     const body = await res.text().catch(() => '');
-    throw new ApiError(res.status, extractErrorMessage(res.status, path, body), path);
+    throw new ApiError(res.status, extractErrorMessage(res.status, body), path);
   }
 
   if (res.status === 204) return undefined as T;
@@ -177,24 +177,65 @@ export async function getPcBuild(slug: string) {
   );
 }
 
+/** External hosts the app is allowed to hand the browser to. */
+const ALLOWED_REDIRECT_HOSTS = new Set([
+  'accounts.google.com',
+  'www.facebook.com',
+  'appleid.apple.com',
+  'www.sandbox.paypal.com',
+  'www.paypal.com',
+  'sandbox.vnpayment.vn',
+  'vnpayment.vn',
+  'sbgateway.zalopay.vn',
+  'zalopay.vn',
+  'checkout.stripe.com',
+]);
+
+/**
+ * Navigates the browser to a target returned by the API.
+ *
+ * Relative URLs must stay same-origin. Absolute URLs are only allowed when
+ * their host is in the allowlist above, so a compromised or spoofed response
+ * cannot bounce a logged-in user to an arbitrary phishing domain.
+ */
+export function safeNavigate(target: string): boolean {
+  if (typeof window === 'undefined') return false;
+  let parsed: URL;
+  try {
+    parsed = new URL(target, window.location.origin);
+  } catch {
+    return false;
+  }
+  if (parsed.origin === window.location.origin) {
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- a validated same-origin target is used to force a clean document load after a payment callback
+    window.location.href = `${parsed.pathname}${parsed.search}${parsed.hash}`;
+    return true;
+  }
+  if (parsed.protocol === 'https:' && ALLOWED_REDIRECT_HOSTS.has(parsed.hostname)) {
+    window.location.href = parsed.toString();
+    return true;
+  }
+  return false;
+}
+
 export async function register(fields: RegisterFields): Promise<AuthResult> {
-  return storeAuth(
-    await apiFetch<AuthResult>('/api/v1/auth/register', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(fields),
-    }),
-  );
+  const result = await apiFetch<AuthResult>('/api/v1/auth/register', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(fields),
+  });
+  dispatchAuthEvent();
+  return result;
 }
 
 export async function login(fields: LoginFields): Promise<AuthResult> {
-  return storeAuth(
-    await apiFetch<AuthResult>('/api/v1/auth/login', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(fields),
-    }),
-  );
+  const result = await apiFetch<AuthResult>('/api/v1/auth/login', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(fields),
+  });
+  dispatchAuthEvent();
+  return result;
 }
 
 export async function getAuthMethods(): Promise<AuthMethods> {
@@ -218,13 +259,13 @@ export async function verifyOtp(
   phone: string,
   otp: string,
 ): Promise<AuthResult> {
-  return storeAuth(
-    await apiFetch<AuthResult>('/api/v1/auth/phone/verify', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ phone, otp }),
-    }),
-  );
+  const result = await apiFetch<AuthResult>('/api/v1/auth/phone/verify', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ phone, otp }),
+  });
+  dispatchAuthEvent();
+  return result;
 }
 
 export async function startSocialLogin(
@@ -233,9 +274,7 @@ export async function startSocialLogin(
   const { url } = await apiFetch<{ url: string }>(
     `/api/v1/auth/social/${provider}`,
   );
-  if (typeof window !== 'undefined') {
-    window.location.href = url;
-  }
+  safeNavigate(url);
 }
 
 export async function logout(): Promise<void> {
@@ -346,11 +385,14 @@ export async function getVnpayReturn(
   });
 }
 
+/**
+ * Mirrors the server-side AtmSubmitDto exactly. The transferred amount is
+ * deliberately not a field: the order total is the server's to decide, and a
+ * client-supplied amount would put an editable price into the settlement path.
+ */
 export interface AtmSubmitFields {
   bank: string;
-  cardNumber: string;
   transRef: string;
-  amount: number;
   timestamp: string;
   note?: string;
 }
@@ -381,12 +423,13 @@ export interface AtmSubmission {
   note: string | null;
   submitted: {
     bank?: string;
-    cardNumber?: string;
     transRef?: string;
     amount?: number;
     timestamp?: string;
     note?: string | null;
   } | null;
+  /** True when the recorded transfer amount equals the order total. */
+  amountMatchesOrder?: boolean;
   order: {
     id: string;
     status: string;
@@ -437,7 +480,7 @@ export async function getInvoicePdf(invoiceId: string): Promise<Blob> {
       `${API_URL}/api/v1/invoices/${encodeURIComponent(invoiceId)}/pdf`,
       {
         credentials: 'include',
-        headers: { ...bearerHeaders() },
+        headers: { ...csrfHeaders() },
       },
     );
     if (res.ok) return res.blob();
@@ -445,9 +488,15 @@ export async function getInvoicePdf(invoiceId: string): Promise<Blob> {
       retried = true;
       continue;
     }
-    throw new ApiError(res.status, `Không tải được PDF (HTTP ${res.status})`);
+    if (res.status === 403) {
+      throw new ApiError(403, 'Bạn không có quyền xem hóa đơn này.');
+    }
+    if (res.status === 404) {
+      throw new ApiError(404, 'Không tìm thấy hóa đơn.');
+    }
+    throw new ApiError(res.status, extractErrorMessage(res.status, await res.text().catch(() => '')));
   }
-  throw new ApiError(401, 'Không tải được PDF');
+  throw new ApiError(401, 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
 }
 
 export function getImageUrl(

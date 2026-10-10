@@ -3,7 +3,23 @@
 import Link from 'next/link';
 import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { getVnpayReturn } from '@/lib/api';
+import { getVnpayReturn, safeNavigate } from '@/lib/api';
+
+/** Parameters VNPay is allowed to send back to this page. */
+const VNPAY_KEYS = [
+  'vnp_TmnCode',
+  'vnp_Amount',
+  'vnp_BankCode',
+  'vnp_BankTranNo',
+  'vnp_CardType',
+  'vnp_OrderInfo',
+  'vnp_PayDate',
+  'vnp_ResponseCode',
+  'vnp_TransactionNo',
+  'vnp_TransactionStatus',
+  'vnp_TxnRef',
+  'vnp_SecureHash',
+];
 
 function VnpayReturnView() {
   const searchParams = useSearchParams();
@@ -13,15 +29,22 @@ function VnpayReturnView() {
     let cancelled = false;
     const params: Record<string, string> = {};
     searchParams.forEach((value, key) => {
-      params[key] = value;
+      if (VNPAY_KEYS.includes(key)) {
+        params[key] = value;
+      }
     });
 
     getVnpayReturn(params)
       .then((result) => {
         if (cancelled) return;
         if (result.responseCode === '00') {
-          const target = result.returnUrl ?? `/checkout/success?orderId=${result.orderId}`;
-          window.location.href = target;
+          // returnUrl comes from the API and is treated as untrusted; only
+          // navigate when the target stays on this origin.
+          const target =
+            result.returnUrl ?? `/checkout/success?orderId=${encodeURIComponent(result.orderId)}`;
+          if (!safeNavigate(target)) {
+            setMessage('Đường dẫn chuyển hướng không hợp lệ.');
+          }
           return;
         }
         setMessage(

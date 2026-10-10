@@ -13,11 +13,11 @@ import {
   addToCart,
   addToCartBulk,
   clearCart,
-  getAccessToken,
   getCart,
   removeCartItem,
   updateCartItem,
 } from '@/lib/api';
+import { ApiError } from '@/lib/api';
 
 export interface CartContextValue {
   cart: Cart | null;
@@ -51,14 +51,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      if (!getAccessToken()) {
-        setCart(null);
-        setError(null);
-        return;
-      }
+      // Always ask the API: session state lives in the HttpOnly cookie, not in
+      // a readable token, so a local pre-check would desync anonymous and
+      // signed-in users.
       setCart(await getCart());
       setError(null);
     } catch {
+      // 401 just means "not signed in" — that is not a cart error to surface.
       setCart(null);
     } finally {
       setLoading(false);
@@ -75,11 +74,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
       const next = await addToCart(productId, quantity);
       setCart(next);
     } catch (err) {
-      const raw = err instanceof Error ? err.message : '';
       setError(
-        raw.includes('401') && raw.includes('/api/v1/cart')
+        err instanceof ApiError && err.status === 401
           ? 'Bạn cần đăng nhập để thêm sản phẩm vào giỏ hàng.'
-          : raw || 'Không thể thêm vào giỏ hàng.',
+          : (err instanceof Error ? err.message : '') || 'Không thể thêm vào giỏ hàng.',
       );
     } finally {
       setOpen(true);
@@ -92,11 +90,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
       const next = await addToCartBulk(productIds.map((productId) => ({ productId })));
       setCart(next);
     } catch (err) {
-      const raw = err instanceof Error ? err.message : '';
       setError(
-        raw.includes('401') && raw.includes('/api/v1/cart')
+        err instanceof ApiError && err.status === 401
           ? 'Bạn cần đăng nhập để thêm sản phẩm vào giỏ hàng.'
-          : raw || 'Không thể thêm sản phẩm vào giỏ hàng.',
+          : (err instanceof Error ? err.message : '') || 'Không thể thêm sản phẩm vào giỏ hàng.',
       );
     } finally {
       setOpen(true);

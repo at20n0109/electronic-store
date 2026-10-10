@@ -3,6 +3,10 @@
 # Skill/agent working directories
 /.impeccable/
 
+# Dependencies and tool caches are never committed. A stray root-level
+# node_modules/.vite cache had previously been added by mistake.
+/node_modules/
+
 # Local error/log dumps
 *.err
 *.log

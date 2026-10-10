@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module.js';
 import { CartModule } from './cart/cart.module.js';
 import { CategoriesModule } from './categories/categories.module.js';
+import { CoreModule } from './core/core.module.js';
 import { CryptoModule } from './crypto/crypto.module.js';
 import { HealthModule } from './health/health.module.js';
 import { InvoicesModule } from './invoices/invoices.module.js';
@@ -35,6 +36,7 @@ import { UploadsModule } from './uploads/uploads.module.js';
       },
     }),
     PrismaModule,
+    CoreModule,
     HealthModule,
     CryptoModule,
     CategoriesModule,

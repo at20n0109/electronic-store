@@ -1,11 +1,43 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
-const API_TARGET = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://127.0.0.1:3001';
+const API_TARGET =
+  process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://127.0.0.1:3001';
 
-const CSP =
-  process.env.NODE_ENV === 'production'
-    ? "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https://*.r2.cloudflarestorage.com https://*.r2.dev; font-src 'self'"
-    : "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' https: data: http://localhost:9000 http://127.0.0.1:9000; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; connect-src 'self' http://localhost:3001 http://127.0.0.1:3001 ws://localhost:3000 ws://127.0.0.1:3000";
+const isDev = process.env.NODE_ENV === 'development';
+
+/**
+ * A per-request nonce removes `script-src 'unsafe-inline'`, which would
+ * otherwise nullify CSP as an XSS mitigation. `strict-dynamic` lets the nonced
+ * Next.js runtime load the scripts it needs without allowlisting hosts.
+ */
+function buildCsp(nonce: string): string {
+  const scriptSrc = isDev
+    ? `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'unsafe-eval'`
+    : `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`;
+  return [
+    "default-src 'self'",
+    scriptSrc,
+    `style-src 'self' 'nonce-${nonce}' 'unsafe-inline'`,
+    "img-src 'self' data: blob: https: http://localhost:9000 http://127.0.0.1:9000 http://localhost:3001 http://127.0.0.1:3001",
+    "font-src 'self' data:",
+    "connect-src 'self' https://*.r2.cloudflarestorage.com https://*.r2.dev http://localhost:3001 http://127.0.0.1:3001",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+    ...(isDev
+      ? []
+      : ['upgrade-insecure-requests']),
+  ].join('; ');
+}
+
+/** Upstream headers that are safe to pass through to the browser. */
+const ALLOWED_RESPONSE_HEADERS = new Set([
+  'content-type',
+  'cache-control',
+  'vary',
+  'x-request-id',
+]);
 
 export async function proxy(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
@@ -21,10 +53,19 @@ export async function proxy(req: NextRequest) {
     return NextResponse.next();
   }
 
-  const res = NextResponse.next();
-  if (req.method === 'GET' || req.method === 'HEAD') {
-    res.headers.set('Content-Security-Policy', CSP);
-  }
+  const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
+  const csp = buildCsp(nonce);
+
+  // The nonce is forwarded to the page render as a request header so any
+  // inline style/script the framework emits can carry it.
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set('x-nonce', nonce);
+  requestHeaders.set('content-security-policy', csp);
+
+  const res = NextResponse.next({ request: { headers: requestHeaders } });
+  // Applied on every method, not just GET/HEAD: HTML and API-ish responses to
+  // other verbs must carry the same protections.
+  res.headers.set('Content-Security-Policy', csp);
   return res;
 }
 
@@ -41,6 +82,8 @@ async function proxyApi(req: NextRequest, pathname: string, search: string) {
   const fetchOptions: RequestInit = {
     method,
     headers,
+    // Upstream redirects are followed server-side and re-validated below, so a
+    // provider's Location header cannot be passed straight to the browser.
     redirect: 'manual',
     cache: 'no-store',
   };
@@ -61,14 +104,45 @@ async function proxyApi(req: NextRequest, pathname: string, search: string) {
 
   const resp = await fetch(url, fetchOptions);
 
+  const location = resp.headers.get('location');
+  if (location && resp.status >= 300 && resp.status < 400) {
+    // Only same-origin locations are forwarded. Anything else is turned into a
+    // plain JSON response so an upstream redirect cannot send a logged-in user
+    // to an arbitrary external domain.
+    const target = new URL(location, url.origin);
+    if (target.origin !== url.origin) {
+      return NextResponse.json(
+        { message: 'Redirect target rejected' },
+        { status: 502 },
+      );
+    }
+    const redirect = NextResponse.redirect(target, resp.status);
+    redirect.headers.set(
+      'Content-Security-Policy',
+      buildCsp(Buffer.from(crypto.randomUUID()).toString('base64')),
+    );
+    return redirect;
+  }
+
+  // Only an allowlist of upstream headers is forwarded. Copying everything
+  // would inherit any Set-Cookie / Access-Control-* / Cache-Control the backend
+  // sets onto this origin.
+  const outHeaders = new Headers();
+  resp.headers.forEach((value, key) => {
+    if (ALLOWED_RESPONSE_HEADERS.has(key.toLowerCase())) {
+      outHeaders.set(key, value);
+    }
+  });
+
   const out = new NextResponse(resp.body, {
     status: resp.status,
     statusText: resp.statusText,
-    headers: resp.headers,
+    headers: outHeaders,
   });
-  out.headers.delete('content-encoding');
-  out.headers.delete('transfer-encoding');
-  out.headers.delete('content-length');
+  out.headers.set(
+    'Content-Security-Policy',
+    buildCsp(Buffer.from(crypto.randomUUID()).toString('base64')),
+  );
   return out;
 }
 

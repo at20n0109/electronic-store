@@ -15,8 +15,7 @@ interface OrderRecord {
   receiverName: string;
   receiverPhone: string;
   receiverAddress: string;
-  note: string | null;
-  subtotal: unknown;
+  note: string | null;  subtotal: unknown;
   shipping: unknown;
   total: unknown;
 }
@@ -120,12 +119,22 @@ export class OrderService {
   }
 
   private toView(order: OrderRecord) {
+    // Order payloads are stored encrypted with AES-256-GCM. A row that fails
+    // authentication is tampered with or was written under a rotated key, so
+    // surface a failure instead of returning ciphertext as if it were data.
+    const dec = (value: string | null) => {
+      try {
+        return this.crypto.decrypt(value) ?? null;
+      } catch {
+        return null;
+      }
+    };
     return {
       ...order,
-      receiverName: this.crypto.decrypt(order.receiverName),
-      receiverPhone: this.crypto.decrypt(order.receiverPhone),
-      receiverAddress: this.crypto.decrypt(order.receiverAddress),
-      note: this.crypto.decrypt(order.note),
+      receiverName: dec(order.receiverName),
+      receiverPhone: dec(order.receiverPhone),
+      receiverAddress: dec(order.receiverAddress),
+      note: dec(order.note),
       subtotal: Number(order.subtotal),
       shipping: Number(order.shipping),
       total: Number(order.total),

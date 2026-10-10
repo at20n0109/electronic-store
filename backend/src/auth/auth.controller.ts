@@ -30,6 +30,7 @@ import { RegisterDto } from './dto/register.dto.js';
 import { JwtGuard } from './guards/jwt-auth.guard.js';
 import { Public } from './guards/public.guard.js';
 import { CsrfGuard } from '../common/guards/csrf.guard.js';
+import { RateLimitGuard } from '../common/guards/rate-limit.guard.js';
 
 const ACCESS_COOKIE = 'access_token';
 const REFRESH_COOKIE = 'refresh_token';
@@ -176,6 +177,7 @@ export class AuthController {
 
   @Post('phone/send-otp')
   @HttpCode(200)
+  @UseGuards(new RateLimitGuard({ limit: 3, windowMs: 60_000 }))
   @Public()
   sendOtp(@Body() dto: SendOtpDto) {
     return this.otp.send(dto.phone);
@@ -183,6 +185,7 @@ export class AuthController {
 
   @Post('phone/verify')
   @HttpCode(200)
+  @UseGuards(new RateLimitGuard({ limit: 5, windowMs: 60_000 }))
   @Public()
   async verifyOtp(
     @Body() dto: VerifyOtpDto,
@@ -195,6 +198,7 @@ export class AuthController {
   }
 
   @Post('register')
+  @UseGuards(new RateLimitGuard({ limit: 5, windowMs: 60_000 }))
   @Public()
   async register(
     @Body() dto: RegisterDto,
@@ -208,6 +212,7 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(200)
+  @UseGuards(new RateLimitGuard({ limit: 5, windowMs: 60_000 }))
   @Public()
   async login(
     @Body() dto: LoginDto,
@@ -221,17 +226,16 @@ export class AuthController {
 
   @Post('refresh')
   @HttpCode(200)
-  @UseGuards(CsrfGuard)
+  @UseGuards(CsrfGuard, new RateLimitGuard({ limit: 10, windowMs: 60_000 }))
   @Public()
   async refresh(
-    @Body('refreshToken') raw: string,
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<AuthResponse> {
-    let token = raw;
-    if (!token) {
-      token = (req.cookies as Record<string, string>)[REFRESH_COOKIE] ?? '';
-    }
+    // The refresh token is only ever read from the HttpOnly cookie. Accepting
+    // it from the body would bypass the cookie's protections entirely.
+    const cookies = (req.cookies as Record<string, string>) ?? {};
+    const token = cookies[REFRESH_COOKIE] ?? '';
     const r = await this.auth.refresh(token, req.headers['user-agent']);
     setCookies(res, r);
     return { user: r.user, accessToken: r.accessToken };
@@ -251,12 +255,9 @@ export class AuthController {
   }
 
   @Get('me')
-  @UseGuards(JwtGuard)
   async me(@Req() req: Request): Promise<SessionUser> {
-    const user = (req as any).user;
-    if (!user) {
-      return this.auth.me('');
-    }
+    // The global JwtGuard has already authenticated the caller.
+    const user = (req as unknown as { user: { id: string } }).user;
     return this.auth.me(user.id);
   }
 }
