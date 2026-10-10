@@ -153,6 +153,17 @@ export async function apiFetch<T>(
   }
 
   if (res.status === 204) return undefined as T;
+  const contentType = res.headers.get('content-type') ?? '';
+  if (!contentType.includes('application/json')) {
+    // A non-JSON body on a 2xx means the request never reached the API (an
+    // un-rewritten path lands on the Next.js origin, which answers with its
+    // HTML app shell). Parsing it would only surface "Unexpected token '<'".
+    throw new ApiError(
+      res.status,
+      SAFE_STATUS_MESSAGES[res.status] ?? 'Đã có lỗi xảy ra. Vui lòng thử lại.',
+      path,
+    );
+  }
   return (await res.json()) as T;
 }
 

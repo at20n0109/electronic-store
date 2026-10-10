@@ -5,6 +5,7 @@ import { ImageUploader } from '@/components/ImageUploader';
 import {
   createProduct,
   deleteProduct,
+  formatVND,
   getAdminProducts,
   getCategories,
   updateProduct,
@@ -381,11 +382,4 @@ export default function AdminProductsClient() {
       )}
     </div>
   );
-}
-
-function formatVND(value: number): string {
-  return new Intl.NumberFormat('vi-VN', {
-    style: 'currency',
-    currency: 'VND',
-  }).format(value);
 }

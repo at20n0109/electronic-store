@@ -24,7 +24,10 @@ export function ImageUploader({
     setUploading(true);
     setError('');
     try {
-      const presigned = await apiFetch<UploadResult>('/uploads/images', {
+      // Must carry the /api/v1 prefix: in production NEXT_PUBLIC_API_URL is
+      // deliberately empty, so a bare path would hit the Next.js origin itself
+      // and come back as an HTML page instead of the presign JSON.
+      const presigned = await apiFetch<UploadResult>('/api/v1/uploads/images', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ filename: file.name, mimeType: file.type }),
