@@ -88,24 +88,12 @@ Với services, toàn bộ app nằm dưới 1 domain ⇒ không cần CORS gi�
 1. R2 → bucket `electronic-store` (đã tạo).
 2. R2 → **Manage R2 API Tokens** → Create token (Object Read & Write) → copy `S3_ACCESS_KEY`, `S3_SECRET_KEY`.
 3. **Public URL** cho ảnh admin upload: Settings → bật **Public access** → domain `https://pub-<hash>.r2.dev`
-   → env `S3_PUBLIC_URL` (không trailing slash). Để trống thì ảnh upload không xem được (PDF download vẫn OK qua API — không cần public).
-4. **CORS** cho presigned PUT từ trình duyệt (origin = domain Vercel duy nhất):
-   Dashboard R2 → bucket `electronic-store` → **Settings → CORS** → Add (paste JSON):
-   ```json
-   [
-     {
-       "AllowedOrigins": ["https://<project>.vercel.app"],
-       "AllowedMethods": ["GET", "PUT", "HEAD"],
-       "AllowedHeaders": ["Content-Type", "x-amz-content-sha256"],
-       "ExposeHeaders": ["ETag"],
-       "MaxAgeSeconds": 3600
-     }
-   ]
-   ```
-   > ⚠️ **Không dùng `PutBucketCors` qua S3 API**: R2 từ chối XML do SDK sinh
-   > (`The XML you provided was not well formed or did not validate against our published schema`),
-   > cả virtual-host lẫn path-style. Chỉ mở CORS từ dashboard. Bước này **chỉ cần cho admin upload ảnh**
-   > (presigned PUT từ trình duyệt); demo user không cần.
+   → env `S3_PUBLIC_URL` (không trailing slash). **Không bắt buộc**: ảnh upload được phục vụ qua API
+   (`GET /api/v1/uploads/images/:id`) nên không cần bucket public (PDF download luôn OK qua API).
+   Bật public chỉ cần thiết nếu muốn đọc trực tiếp từ R2.
+4. **CORS**: **không cần** cho upload ảnh — browser POST bytes vào API của chính app (same-origin),
+   không PUT cross-origin lên bucket. Cần CORS chỉ nếu sau này đổi sang presigned PUT trực tiếp.
+   CORS cho API (backend) vẫn cấu hình bình thường qua `CORS_ORIGIN`.
 5. `S3_REGION=auto`, `S3_ACL` **để trống** (R2 không hỗ trợ ACL), `S3_ENDPOINT=https://<accountid>.r2.cloudflarestorage.com`.
 
 ---
@@ -132,7 +120,7 @@ Với services, toàn bộ app nằm dưới 1 domain ⇒ không cần CORS gi�
    | S3_BUCKET | `electronic-store` |
    | S3_REGION | `auto` |
    | S3_ACL | *(để trống)* |
-   | S3_PUBLIC_URL | `https://pub-<hash>.r2.dev` hoặc custom domain |
+    | S3_PUBLIC_URL | *tuỳ chọn* — bỏ trống được; ảnh upload phục vụ qua `/api/v1/uploads/images/:id` |
    | PAYMENT_PROVIDER | `mock` (default khi request không nêu `provider`; frontend gọi `GET /api/v1/payments/methods` để user chọn) |
    | PAYPAL_CLIENT_ID / PAYPAL_SECRET | từ PayPal sandbox app (mục 4) — có thì PayPal hiện trong danh sách trả tiền |
    | PAYPAL_MODE | `sandbox` |

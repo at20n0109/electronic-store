@@ -1,4 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   GetObjectCommand,
@@ -6,10 +10,8 @@ import {
   S3Client,
   type ObjectCannedACL,
 } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { randomUUID } from 'node:crypto';
-import { extname } from 'node:path';
-import type { CreateImageUploadDto } from './dto/create-image-upload.dto.js';
+import type { Request } from 'express';
 
 const ALLOWED_IMAGE_TYPES = new Set([
   'image/jpeg',
@@ -18,13 +20,22 @@ const ALLOWED_IMAGE_TYPES = new Set([
   'image/avif',
 ]);
 
+/**
+ * Decoded image ceiling. The request body carries the raw bytes, so this is
+ * also what the request-stream reader enforces before anything is buffered.
+ */
+const MAX_IMAGE_BYTES = 2500000;
+
+/** `uploads/<uuid>.<ext>` — generated server-side, so only this shape is served. */
+const IMAGE_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(?:png|jpe?g|webp|avif)$/i;
+
 @Injectable()
 export class UploadsService {
   private readonly s3: S3Client;
   private readonly bucket: string;
   private readonly publicBase: string;
   private readonly acl: string | undefined;
-  private readonly signedTtl = 900;
 
   constructor(private readonly config: ConfigService) {
     this.bucket = config.getOrThrow<string>('S3_BUCKET');
@@ -48,32 +59,69 @@ export class UploadsService {
     return this.acl ? { ACL: this.acl as ObjectCannedACL } : {};
   }
 
-  async createImagePresigned(dto: CreateImageUploadDto) {
-    if (!ALLOWED_IMAGE_TYPES.has(dto.mimeType)) {
-      throw new Error('Unsupported image type');
-    }
-
-    const ext = extname(dto.filename) || `.${dto.mimeType.split('/')[1]}`;
-    const key = `uploads/${randomUUID()}${ext.toLowerCase()}`;
-
-    const command = new PutObjectCommand({
-      Bucket: this.bucket,
-      Key: key,
-      ContentType: dto.mimeType,
-      ...this.aclParam(),
-    });
-
-    const uploadUrl = await getSignedUrl(this.s3, command, {
-      expiresIn: this.signedTtl,
-    });
-
-    return { key, uploadUrl, url: this.public(key) };
+  private async put(
+    key: string,
+    body: Buffer | Uint8Array | string,
+    contentType: string,
+  ): Promise<void> {
+    await this.s3.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        Body: body,
+        ContentType: contentType,
+        ...this.aclParam(),
+      }),
+    );
   }
 
-  // Download signing is intentionally absent: a presign that takes an
-  // arbitrary key with no authorization check is an unrestricted object read
-  // primitive. Invoices download through download(), which is only reached
-  // after an ownership check in InvoicesService.getPdf.
+  /**
+   * Stores an admin-uploaded image sent as raw request bytes.
+   *
+   * The bytes arrive as the request body rather than as a JSON field on
+   * purpose: body-parser skips content types it does not recognise, so an image
+   * never gets clipped by Nest's 100kb JSON default, and the payload carries no
+   * base64 overhead. The caller is already validated by the RolesGuard, so this
+   * method only has to police the payload itself.
+   */
+  async uploadImage(req: Request): Promise<{ id: string }> {
+    const contentType = normalizeContentType(req.headers['content-type']);
+    if (!contentType || !ALLOWED_IMAGE_TYPES.has(contentType)) {
+      throw new BadRequestException('Unsupported image type');
+    }
+
+    const body = await readCappedBody(req, MAX_IMAGE_BYTES);
+
+    // Derived from the validated content type, not from anything the client
+    // names the file, so the extension can never disagree with the bytes.
+    const ext = `.${contentType.split('/')[1]}`;
+    const id = `${randomUUID()}${ext}`;
+    await this.put(`uploads/${id}`, body, contentType);
+    return { id };
+  }
+
+  async readImage(id: string): Promise<{
+    body: Buffer;
+    contentType: string | null;
+  }> {
+    // The key is reconstructed here, never taken from the request, so a
+    // traversal attempt fails at the pattern check before touching the bucket.
+    if (!IMAGE_ID_PATTERN.test(id)) {
+      throw new BadRequestException('Invalid image id');
+    }
+
+    const response = await this.s3.send(
+      new GetObjectCommand({ Bucket: this.bucket, Key: `uploads/${id}` }),
+    );
+    if (!response.Body) {
+      throw new NotFoundException('Image not found');
+    }
+
+    return {
+      body: Buffer.from(await response.Body.transformToByteArray()),
+      contentType: response.ContentType ?? null,
+    };
+  }
 
   publicUrl(key: string): string {
     return this.public(key);
@@ -84,15 +132,7 @@ export class UploadsService {
     key: string,
     contentType: string,
   ): Promise<string> {
-    await this.s3.send(
-      new PutObjectCommand({
-        Bucket: this.bucket,
-        Key: key,
-        Body: body,
-        ContentType: contentType,
-        ...this.aclParam(),
-      }),
-    );
+    await this.put(key, body, contentType);
     return this.public(key);
   }
 
@@ -109,4 +149,38 @@ export class UploadsService {
     const base = this.publicBase || '';
     return base ? `${base.replace(/\/+$/, '')}/${this.bucket}/${key}` : key;
   }
+}
+
+/** Strips any `;charset=...` parameter and lowercases the media type. */
+function normalizeContentType(header: string | string[] | undefined): string {
+  const value = Array.isArray(header) ? header[0] : header;
+  if (!value) return '';
+  return value.split(';')[0].trim().toLowerCase();
+}
+
+/**
+ * Buffers a request body while counting, so an oversized upload is rejected as
+ * soon as the limit is crossed instead of after the whole body has been held
+ * in memory.
+ */
+async function readCappedBody(
+  req: Request,
+  limit: number,
+): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  let total = 0;
+
+  for await (const chunk of req) {
+    total += chunk.length;
+    if (total > limit) {
+      throw new BadRequestException('Image is too large');
+    }
+    chunks.push(chunk);
+  }
+
+  const body = Buffer.concat(chunks);
+  if (body.length === 0) {
+    throw new BadRequestException('Image payload is empty');
+  }
+  return body;
 }

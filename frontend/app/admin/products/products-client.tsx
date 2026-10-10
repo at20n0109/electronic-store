@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { ImageUploader } from '@/components/ImageUploader';
+import { ResponsiveImage } from '@/components/ResponsiveImage';
 import {
   createProduct,
   deleteProduct,
@@ -301,13 +302,28 @@ export default function AdminProductsClient() {
               Ảnh (URL)
             </span>
             <input
-              type="url"
+              type="text"
               value={imageUrl}
               onChange={(e) => setImageUrl(e.target.value)}
-              placeholder="https://..."
+              placeholder="/images/photos/... hoặc tải ảnh lên"
               className={inputClass}
             />
             <ImageUploader onUpload={setImageUrl} />
+            {imageUrl && (
+              <div className="flex items-center gap-3 rounded-lg border border-zinc-200 p-2 dark:border-zinc-800">
+                <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-md bg-zinc-100 dark:bg-zinc-800">
+                  <ResponsiveImage
+                    src={imageUrl}
+                    alt=""
+                    sizes="64px"
+                    className="object-cover"
+                  />
+                </div>
+                <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                  Xem trước ảnh sẽ lưu cho sản phẩm
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="mt-5 flex gap-3">
