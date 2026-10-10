@@ -16,10 +16,10 @@
     "backend": {
       "root": "backend",
       "runtime": "node",
-      "entrypoint": "server.cjs",
+      "entrypoint": "vercel-entry.cjs",
       "buildCommand": "npm run build -s && npx prisma generate && npm run build:vercel -s",
       "functions": {
-        "server.cjs": {
+        "vercel-entry.cjs": {
           "includeFiles": "backend/node_modules/pdfkit/js/**"
         }
       }
