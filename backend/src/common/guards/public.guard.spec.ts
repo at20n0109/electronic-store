@@ -30,13 +30,14 @@ describe('PublicGuard', () => {
     expect(guard.canActivate(context)).toBe(true);
   });
 
-  it('returns false for an untagged route so JwtGuard can deny it', () => {
-    // Returning false (rather than throwing) leaves the failure shape to
-    // JwtGuard, which produces the correct 401 for a missing token.
+  it('lets an untagged route through so JwtGuard can deny it', () => {
+    // PublicGuard must not short-circuit the chain with a 403: returning true
+    // keeps NestJS running guards until JwtGuard, which rejects untagged
+    // routes with the correct 401 for a missing token.
     const { context, reflector } = contextWith(undefined);
     const guard = new PublicGuard(reflector);
 
-    expect(guard.canActivate(context)).toBe(false);
+    expect(guard.canActivate(context)).toBe(true);
   });
 });
 
