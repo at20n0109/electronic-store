@@ -48,6 +48,8 @@ import { CsrfGuard } from '../common/guards/csrf.guard.js';
       provide: APP_GUARD,
       useClass: CsrfGuard,
     },
+    CsrfGuard,
+    PublicGuard,
     Reflector,
   ],
   exports: [Reflector, JwtModule, CsrfGuard, PublicGuard],

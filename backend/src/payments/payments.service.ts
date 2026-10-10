@@ -97,9 +97,11 @@ export class PaymentsService {
       // Only registered when explicitly opted in for a local sandbox; see
       // isEnabled('mock').
       'atm-mock': new AtmMockProvider(),
-      bank: new BankTransferProvider(get),
       cod: new CodPaymentProvider(),
     };
+    if (this.isEnabled('bank')) {
+      this.providers['bank'] = new BankTransferProvider(get);
+    }
     if (this.isEnabled('mock')) {
       this.providers['mock'] = new MockPaymentProvider();
     }
@@ -152,7 +154,7 @@ export class PaymentsService {
     const get = (key: string) => this.config.get<string>(key);
     switch (name) {
       case 'momo':
-        return Boolean(get('MOMO_PARTNER_CODE'));
+        return false;
       case 'paypal':
         return Boolean(get('PAYPAL_CLIENT_ID'));
       case 'vnpay':
