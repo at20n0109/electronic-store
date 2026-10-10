@@ -15,6 +15,17 @@ if (process.env.PRISMA_MIGRATE_DEPLOY === '1') {
   }
 }
 
+if (process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD) {
+  process.chdir(path.join(__dirname, '..'));
+  console.log('[vercel-build] seeding admin account...');
+  try {
+    execSync('npx tsx scripts/seed-admin.ts', { stdio: 'inherit', env: process.env });
+  } catch (err) {
+    console.error('[vercel-build] seed-admin failed:', err.message);
+    process.exit(1);
+  }
+}
+
 const clientPath = path.join(__dirname, '..', 'dist', 'generated', 'prisma', 'client.js');
 const raw = fs.readFileSync(clientPath, 'utf8');
 if (raw.includes('import.meta.url')) {

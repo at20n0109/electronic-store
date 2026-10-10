@@ -142,15 +142,48 @@ export function AccountButton() {
               </div>
               <div className="my-1 border-t border-zinc-700" />
               {(user.role === 'ADMIN' || user.role === 'STAFF') && (
-                <Link
-                  role="menuitem"
-                  href="/admin/atm"
-                  onClick={() => setOpen(false)}
-                  className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-zinc-100 transition-colors hover:bg-zinc-800 hover:text-red-400"
-                >
-                  <UserIcon size={16} />
-                  Duyệt giao dịch ATM
-                </Link>
+                <div className="pb-1">
+                  <p className="px-4 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+                    Quản trị
+                  </p>
+                  <Link
+                    role="menuitem"
+                    href="/admin"
+                    onClick={() => setOpen(false)}
+                    className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-zinc-100 transition-colors hover:bg-zinc-800 hover:text-red-400"
+                  >
+                    <UserIcon size={16} />
+                    Bảng điều khiển
+                  </Link>
+                  <Link
+                    role="menuitem"
+                    href="/admin/orders"
+                    onClick={() => setOpen(false)}
+                    className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-zinc-100 transition-colors hover:bg-zinc-800 hover:text-red-400"
+                  >
+                    <UserIcon size={16} />
+                    Quản lý đơn hàng
+                  </Link>
+                  <Link
+                    role="menuitem"
+                    href="/admin/products"
+                    onClick={() => setOpen(false)}
+                    className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-zinc-100 transition-colors hover:bg-zinc-800 hover:text-red-400"
+                  >
+                    <UserIcon size={16} />
+                    Quản lý sản phẩm
+                  </Link>
+                  <Link
+                    role="menuitem"
+                    href="/admin/atm"
+                    onClick={() => setOpen(false)}
+                    className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-zinc-100 transition-colors hover:bg-zinc-800 hover:text-red-400"
+                  >
+                    <UserIcon size={16} />
+                    Duyệt giao dịch ATM
+                  </Link>
+                  <div className="my-1 border-t border-zinc-700" />
+                </div>
               )}
               <button
                 type="button"

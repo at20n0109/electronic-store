@@ -51,10 +51,44 @@ export class ProductsService {
     };
   }
 
-  private buildWhere(query: QueryProductsDto) {
-    const where: Record<string, unknown> = {
-      status: 'ACTIVE',
+  /**
+   * Staff/Admin catalogue listing. Unlike {@link findAll} it does not filter by
+   * status, so DRAFT/HIDDEN rows are visible for management. The route is
+   * protected by the RolesGuard.
+   */
+  async findAllAdmin(query: QueryProductsDto) {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 50;
+
+    const where = this.buildWhere(query, true);
+
+    const [total, rows] = await Promise.all([
+      this.prisma.product.count({ where }),
+      this.prisma.product.findMany({
+        where,
+        include: {
+          images: { orderBy: { sortOrder: 'asc' } },
+          category: { select: { id: true, name: true, slug: true } },
+        },
+        orderBy: this.buildOrderBy(query.sort),
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+    ]);
+
+    return {
+      data: rows.map((row) => this.serialize(row)),
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit) || 1,
+      },
     };
+  }
+
+  private buildWhere(query: QueryProductsDto, includeAll = false) {
+    const where: Record<string, unknown> = includeAll ? {} : { status: 'ACTIVE' };
 
     if (query.search) {
       where.OR = [

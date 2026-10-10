@@ -35,6 +35,14 @@ export class ProductsController {
     return this.productsService.findBySlug(slug);
   }
 
+  // Declared before :id so the literal path wins over the uuid param.
+  @Get('admin')
+  @UseGuards(JwtGuard, RolesGuard)
+  @Roles('STAFF', 'ADMIN')
+  findAllAdmin(@Query() query: QueryProductsDto) {
+    return this.productsService.findAllAdmin(query);
+  }
+
   @Get(':id')
   @Public()
   findOne(@Param('id', ParseUUIDPipe) id: string) {

@@ -1,4 +1,5 @@
 import type {
+  AdminOrder,
   AuthMethods,
   AuthResult,
   Cart,
@@ -467,6 +468,60 @@ export async function getMyOrders(): Promise<Order[]> {
 
 export async function getOrder(orderId: string): Promise<Order> {
   return apiFetch<Order>(`/api/v1/orders/${orderId}`);
+}
+
+export async function getAdminOrders(
+  status?: 'PENDING' | 'PAID' | 'CANCELLED',
+): Promise<AdminOrder[]> {
+  const query = status ? `?status=${status}` : '';
+  return apiFetch<AdminOrder[]>(`/api/v1/orders/admin${query}`, {
+    cache: 'no-store',
+  });
+}
+
+export async function getAdminProducts(
+  params: URLSearchParams,
+): Promise<PaginatedResponse<Product>> {
+  const qs = params.toString();
+  return apiFetch<PaginatedResponse<Product>>(
+    `/api/v1/products/admin${qs ? `?${qs}` : ''}`,
+    { cache: 'no-store' },
+  );
+}
+
+export interface ProductInput {
+  sku: string;
+  name: string;
+  description?: string;
+  price: number;
+  stock: number;
+  categoryId?: string | null;
+  images?: { url: string; alt?: string }[];
+}
+
+export async function createProduct(input: ProductInput): Promise<Product> {
+  return apiFetch<Product>('/api/v1/products', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateProduct(
+  id: string,
+  input: Partial<ProductInput>,
+): Promise<Product> {
+  return apiFetch<Product>(`/api/v1/products/${id}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}
+
+export async function deleteProduct(id: string): Promise<{ success: boolean }> {
+  return apiFetch<{ success: boolean }>(`/api/v1/products/${id}`, {
+    method: 'DELETE',
+  });
 }
 
 export async function getInvoice(orderId: string): Promise<Invoice> {

@@ -6,6 +6,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CartService } from '../cart/cart.service.js';
 import { CryptoService } from '../crypto/crypto.service.js';
+import { OrderStatus } from '../generated/prisma/enums.js';
 import type { CreateOrderDto } from './dto/create-order.dto.js';
 
 const FREE_SHIPPING_MIN = 300000;
@@ -18,6 +19,9 @@ interface OrderRecord {
   note: string | null;  subtotal: unknown;
   shipping: unknown;
   total: unknown;
+  payment?: { amount: unknown } | null;
+  items?: unknown;
+  user?: unknown;
 }
 
 @Injectable()
@@ -118,6 +122,32 @@ export class OrderService {
     return this.toView(order);
   }
 
+  /**
+   * Staff/Admin view of all orders, optionally narrowed to one status. The
+   * caller is validated by the RolesGuard; this method is deliberately user-
+   * agnostic and returns every matching order with the buyer + payment rows.
+   */
+  async listAll(status?: string) {
+    const where =
+      status && status in OrderStatus
+        ? { status: status as OrderStatus }
+        : undefined;
+
+    const orders = await this.prisma.order.findMany({
+      where,
+      include: {
+        items: { include: { product: true } },
+        payment: true,
+        user: {
+          select: { id: true, email: true, name: true, phone: true },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return orders.map((o) => this.toView(o));
+  }
+
   private toView(order: OrderRecord) {
     // Order payloads are stored encrypted with AES-256-GCM. A row that fails
     // authentication is tampered with or was written under a rotated key, so
@@ -138,6 +168,14 @@ export class OrderService {
       subtotal: Number(order.subtotal),
       shipping: Number(order.shipping),
       total: Number(order.total),
+      ...(order.payment
+        ? {
+            payment: {
+              ...order.payment,
+              amount: Number(order.payment.amount),
+            },
+          }
+        : {}),
     };
   }
 }

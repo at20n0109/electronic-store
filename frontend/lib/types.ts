@@ -185,3 +185,12 @@ export type Order = {
   payment?: Payment | null;
   invoice?: Invoice | null;
 };
+
+export type AdminOrder = Order & {
+  user?: {
+    id: string;
+    email: string;
+    name: string | null;
+    phone: string | null;
+  } | null;
+};
