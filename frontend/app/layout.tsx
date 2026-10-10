@@ -7,6 +7,12 @@ import { CartDrawer, CartToggle } from "@/components/CartDrawer";
 import { AccountButton } from "@/components/AccountButton";
 import { MidAutumnPromo } from "@/components/promo/MidAutumnBanner";
 
+// The proxy sets a per-request CSP nonce (strict-dynamic). Next.js can only
+// stamp that nonce onto framework/inline scripts during dynamic rendering;
+// statically prerendered pages are generated at build time when no CSP header
+// exists, so their scripts would be blocked. Force dynamic rendering globally.
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: "PC Store - Linh kiện máy tính",
   description:
