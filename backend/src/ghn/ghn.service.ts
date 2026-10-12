@@ -6,6 +6,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CryptoService } from '../crypto/crypto.service.js';
+import { OrderStatus } from '../generated/prisma/enums.js';
 
 /**
  * GHN exposes its data sets on a different path prefix than its order/fee
@@ -187,9 +188,11 @@ export class GhnService {
   }
 
   /**
-   * Pushes an order to GHN and records the consignment. Only a PAID or COD
-   * order should reach here: GHN holds real money in its hands once the parcel
-   * is created, so an order with no payment behind it must never be dispatched.
+   * Pushes an order to GHN and records the consignment. Only a PAID order may
+   * reach here: GHN takes physical custody the moment a consignment exists, so
+   * dispatching an order with no payment behind it would put goods in a
+   * courier's hands for free. The button in the UI is gated the same way, but
+   * the decision has to be enforced here because the UI is not a boundary.
    */
   async createShipment(orderId: string, createdById: string) {
     const settings = this.settings();
@@ -198,6 +201,12 @@ export class GhnService {
       include: { items: true, payment: true },
     });
     if (!order) throw new NotFoundException('Order not found');
+
+    if (order.status !== OrderStatus.PAID) {
+      throw new BadRequestException(
+        'Chỉ tạo vận đơn GHN cho đơn đã thanh toán.',
+      );
+    }
 
     if (
       !order.receiverDistrictId ||
