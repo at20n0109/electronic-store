@@ -139,13 +139,16 @@ export class PaymentsService {
       return this.defaultProvider();
     }
     // Only an enabled provider may be selected. This gates out "mock" and
-    // "atm-mock" as well as any provider missing its credentials.
+    // "atm-mock" as well as any provider missing its credentials. The requested
+    // name comes from the request body, so it is not echoed back — the filter
+    // forwards exception strings verbatim and reflecting input is not a habit
+    // worth starting.
     if (!this.isEnabled(name.toLowerCase())) {
-      throw new BadRequestException(`Unknown payment provider: ${name}`);
+      throw new BadRequestException('Unknown payment provider');
     }
     const provider = this.providers[name.toLowerCase()];
     if (!provider) {
-      throw new BadRequestException(`Unknown payment provider: ${name}`);
+      throw new BadRequestException('Unknown payment provider');
     }
     return provider;
   }

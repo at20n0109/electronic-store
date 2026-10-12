@@ -67,6 +67,16 @@ export class AllExceptionsFilter implements ExceptionFilter {
           (entry) => typeof entry === 'string',
         );
       }
+      // A `BadRequestException('text')` lands here as an object whose message
+      // is a single string. Those strings are authored by our own code, and
+      // they are the only explanation a caller gets (why a COD order cannot be
+      // settled, why GHN refused a consignment), so dropping them leaves the
+      // UI saying nothing beyond "Request failed". Anything that is not a
+      // string — an object supplied to the exception, a raw error body — still
+      // falls through and is collapsed.
+      if (typeof record.message === 'string') {
+        return record.message;
+      }
     }
     return 'Request failed';
   }
