@@ -6,7 +6,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CartService } from '../cart/cart.service.js';
 import { CryptoService } from '../crypto/crypto.service.js';
-import { OrderStatus } from '../generated/prisma/enums.js';
+import { OrderStatus, PaymentProvider, PaymentStatus } from '../generated/prisma/enums.js';
 import type { CreateOrderDto } from './dto/create-order.dto.js';
 
 const FREE_SHIPPING_MIN = 300000;
@@ -146,6 +146,76 @@ export class OrderService {
     });
 
     return orders.map((o) => this.toView(o));
+  }
+
+  /**
+   * Confirms that a COD order was settled — the shipper handed over the cash,
+   * so the order is closed as paid by a human rather than by a provider
+   * callback. The caller is validated by the RolesGuard, so this method only
+   * has to keep the state machine itself consistent.
+   *
+   * Only COD orders are approvable here: every other provider marks its own
+   * orders paid through a signature-verified return/webhook path, and letting
+   * a staff member approve those by hand would let a paid-but-uncaptured order
+   * be released.
+   */
+  async confirmCod(orderId: string, confirmedBy: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const order = await tx.order.findUnique({
+        where: { id: orderId },
+        include: { payment: true },
+      });
+      if (!order) {
+        throw new NotFoundException('Order not found');
+      }
+
+      // Idempotent: a double tap, or one staff member racing another, must not
+      // fail or overwrite the first confirmation.
+      if (order.status === OrderStatus.PAID) {
+        return { ok: true, alreadyConfirmed: true };
+      }
+      if (order.status === OrderStatus.CANCELLED) {
+        throw new BadRequestException(
+          'A cancelled order cannot be approved',
+        );
+      }
+      if (!order.payment || order.payment.provider !== PaymentProvider.COD) {
+        throw new BadRequestException('Only COD orders can be approved here');
+      }
+
+      const now = new Date();
+      const confirmedAt = now.toISOString();
+
+      // Annotated in place rather than in a new column: Payment.payload is a
+      // JSON column already written by every provider, so the audit trail adds
+      // no schema change and ids are recorded even if the row is re-pushed.
+      await tx.payment.update({
+        where: { id: order.payment.id },
+        data: {
+          status: PaymentStatus.SUCCEEDED,
+          payload: {
+            ...(typeof order.payment.payload === 'object' &&
+            order.payment.payload !== null
+              ? order.payment.payload
+              : {}),
+            codConfirmedAt: confirmedAt,
+            codConfirmedBy: confirmedBy,
+          },
+        },
+      });
+
+      await tx.order.update({
+        where: { id: order.id },
+        data: { status: OrderStatus.PAID, paidAt: now },
+      });
+
+      return {
+        ok: true,
+        status: 'confirmed',
+        orderId: order.id,
+        confirmedAt,
+      };
+    });
   }
 
   private toView(order: OrderRecord) {

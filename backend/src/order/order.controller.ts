@@ -42,6 +42,19 @@ export class OrderController {
     return this.orders.listAll(status);
   }
 
+  /**
+   * Settles a COD order after the cash is actually collected. Unlike the
+   * provider return/webhook routes, this one is a deliberate staff action, so
+   * it carries CsrfGuard on top of the role check.
+   */
+  @Post(':id/cod-confirm')
+  @UseGuards(RolesGuard, CsrfGuard)
+  @Roles('ADMIN', 'STAFF')
+  async codConfirm(@Req() req: Request, @Param('id', ParseUUIDPipe) id: string) {
+    const user = (req as unknown as { user: { id: string } }).user;
+    return this.orders.confirmCod(id, user.id);
+  }
+
   @Get(':id')
   async myOrder(
     @Req() req: Request,

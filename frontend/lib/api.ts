@@ -490,6 +490,17 @@ export async function getAdminOrders(
   });
 }
 
+export async function confirmCodOrder(orderId: string): Promise<{
+  ok: boolean;
+  alreadyConfirmed?: boolean;
+  status?: string;
+  orderId?: string;
+}> {
+  return apiFetch('/api/v1/orders/' + encodeURIComponent(orderId) + '/cod-confirm', {
+    method: 'POST',
+  });
+}
+
 export async function getAdminProducts(
   params: URLSearchParams,
 ): Promise<PaginatedResponse<Product>> {

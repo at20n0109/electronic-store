@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { formatVND, getAdminOrders } from '@/lib/api';
+import { confirmCodOrder, formatVND, getAdminOrders } from '@/lib/api';
 import type { AdminOrder } from '@/lib/types';
 
 type Filter = 'PAID' | 'PENDING' | 'CANCELLED' | 'ALL';
@@ -36,11 +36,27 @@ function statusClass(status: string): string {
   return 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400';
 }
 
+/**
+ * Mirrors the server-side rule: only a still-pending COD order can be settled
+ * by hand. Every other provider marks itself paid through a verified
+ * return/webhook path, so showing a button there would invite a release the
+ * API would refuse anyway.
+ */
+function canApproveCod(order: AdminOrder): boolean {
+  return (
+    order.status === 'PENDING' &&
+    order.payment?.provider === 'COD' &&
+    order.payment?.status === 'PENDING'
+  );
+}
+
 export default function AdminOrdersClient() {
-  const [filter, setFilter] = useState<Filter>('PAID');
+  const [filter, setFilter] = useState<Filter>('PENDING');
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [confirming, setConfirming] = useState<string | null>(null);
+  const [notice, setNotice] = useState('');
 
   const load = useCallback(async (value: Filter) => {
     setLoading(true);
@@ -55,11 +71,34 @@ export default function AdminOrdersClient() {
     }
   }, []);
 
+  async function onApproveCod(orderId: string) {
+    setConfirming(orderId);
+    setNotice('');
+    setError('');
+    try {
+      const result = await confirmCodOrder(orderId);
+      setNotice(
+        result.alreadyConfirmed
+          ? 'Đơn này đã được duyệt trước đó.'
+          : 'Đã duyệt đơn COD và chuyển sang đã thanh toán.',
+      );
+      // Reload the whole list: the order may now belong under a different
+      // filter tab than the one it was approved from.
+      await load(filter);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Duyệt đơn thất bại, vui lòng thử lại.',
+      );
+    } finally {
+      setConfirming(null);
+    }
+  }
+
   useEffect(() => {
     let active = true;
     (async () => {
       try {
-        const rows = await getAdminOrders('PAID');
+        const rows = await getAdminOrders('PENDING');
         if (!active) return;
         setOrders(rows);
         setError('');
@@ -84,7 +123,8 @@ export default function AdminOrdersClient() {
         Quản lý đơn hàng
       </h1>
       <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-        Theo dõi đơn đã thanh toán thành công và đơn đang chờ thanh toán.
+        Duyệt đơn COD đã thu tiền, và theo dõi đơn đã thanh toán hoặc đang chờ
+        xử lý.
       </p>
 
       <div className="mt-5 flex flex-wrap gap-2">
@@ -115,6 +155,11 @@ export default function AdminOrdersClient() {
       </div>
 
       {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
+      {notice && !error && (
+        <p className="mt-4 text-sm text-green-600 dark:text-green-400">
+          {notice}
+        </p>
+      )}
 
       {loading ? (
         <p className="mt-8 text-sm text-zinc-500">Đang tải...</p>
@@ -148,6 +193,22 @@ export default function AdminOrdersClient() {
                   )}
                 </div>
               </div>
+
+              {canApproveCod(order) && (
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 dark:border-amber-900/50 dark:bg-amber-950/30">
+                  <p className="text-xs text-amber-800 dark:text-amber-300">
+                    Đơn COD — duyệt sau khi đã thu tiền từ khách.
+                  </p>
+                  <button
+                    type="button"
+                    disabled={confirming === order.id}
+                    onClick={() => void onApproveCod(order.id)}
+                    className="h-9 rounded-lg bg-red-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-red-500 disabled:opacity-50"
+                  >
+                    {confirming === order.id ? 'Đang duyệt...' : 'Duyệt đơn COD'}
+                  </button>
+                </div>
+              )}
 
               <dl className="mt-4 grid gap-x-8 gap-y-2 text-sm sm:grid-cols-2">
                 <Row
