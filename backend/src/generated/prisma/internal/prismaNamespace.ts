@@ -408,6 +408,7 @@ export const ModelName = {
   Cart: 'Cart',
   CartItem: 'CartItem',
   Order: 'Order',
+  GhnShipment: 'GhnShipment',
   Payment: 'Payment',
   Invoice: 'Invoice',
   OrderItem: 'OrderItem',
@@ -427,7 +428,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "user" | "otp" | "refreshToken" | "category" | "product" | "productImage" | "pcBuild" | "pcBuildItem" | "cart" | "cartItem" | "order" | "payment" | "invoice" | "orderItem" | "paymentMetadata"
+    modelProps: "user" | "otp" | "refreshToken" | "category" | "product" | "productImage" | "pcBuild" | "pcBuildItem" | "cart" | "cartItem" | "order" | "ghnShipment" | "payment" | "invoice" | "orderItem" | "paymentMetadata"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1245,6 +1246,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    GhnShipment: {
+      payload: Prisma.$GhnShipmentPayload<ExtArgs>
+      fields: Prisma.GhnShipmentFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.GhnShipmentFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GhnShipmentPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.GhnShipmentFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GhnShipmentPayload>
+        }
+        findFirst: {
+          args: Prisma.GhnShipmentFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GhnShipmentPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.GhnShipmentFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GhnShipmentPayload>
+        }
+        findMany: {
+          args: Prisma.GhnShipmentFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GhnShipmentPayload>[]
+        }
+        create: {
+          args: Prisma.GhnShipmentCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GhnShipmentPayload>
+        }
+        createMany: {
+          args: Prisma.GhnShipmentCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.GhnShipmentCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GhnShipmentPayload>[]
+        }
+        delete: {
+          args: Prisma.GhnShipmentDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GhnShipmentPayload>
+        }
+        update: {
+          args: Prisma.GhnShipmentUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GhnShipmentPayload>
+        }
+        deleteMany: {
+          args: Prisma.GhnShipmentDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.GhnShipmentUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.GhnShipmentUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GhnShipmentPayload>[]
+        }
+        upsert: {
+          args: Prisma.GhnShipmentUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$GhnShipmentPayload>
+        }
+        aggregate: {
+          args: Prisma.GhnShipmentAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateGhnShipment>
+        }
+        groupBy: {
+          args: Prisma.GhnShipmentGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.GhnShipmentGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.GhnShipmentCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.GhnShipmentCountAggregateOutputType> | number
+        }
+      }
+    }
     Payment: {
       payload: Prisma.$PaymentPayload<ExtArgs>
       fields: Prisma.PaymentFieldRefs
@@ -1729,12 +1804,33 @@ export const OrderScalarFieldEnum = {
   receiverPhone: 'receiverPhone',
   receiverAddress: 'receiverAddress',
   note: 'note',
+  receiverProvinceId: 'receiverProvinceId',
+  receiverDistrictId: 'receiverDistrictId',
+  receiverWardCode: 'receiverWardCode',
   paidAt: 'paidAt',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
 
 export type OrderScalarFieldEnum = (typeof OrderScalarFieldEnum)[keyof typeof OrderScalarFieldEnum]
+
+
+export const GhnShipmentScalarFieldEnum = {
+  id: 'id',
+  orderId: 'orderId',
+  ghnOrderCode: 'ghnOrderCode',
+  serviceId: 'serviceId',
+  fee: 'fee',
+  codAmount: 'codAmount',
+  insuranceValue: 'insuranceValue',
+  status: 'status',
+  expectedDeliveryTime: 'expectedDeliveryTime',
+  createdById: 'createdById',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type GhnShipmentScalarFieldEnum = (typeof GhnShipmentScalarFieldEnum)[keyof typeof GhnShipmentScalarFieldEnum]
 
 
 export const PaymentScalarFieldEnum = {
@@ -2167,6 +2263,7 @@ export type GlobalOmitConfig = {
   cart?: Prisma.CartOmit
   cartItem?: Prisma.CartItemOmit
   order?: Prisma.OrderOmit
+  ghnShipment?: Prisma.GhnShipmentOmit
   payment?: Prisma.PaymentOmit
   invoice?: Prisma.InvoiceOmit
   orderItem?: Prisma.OrderItemOmit

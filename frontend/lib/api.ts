@@ -349,6 +349,9 @@ export interface CreateOrderFields {
   receiverPhone: string;
   receiverAddress: string;
   note?: string;
+  receiverProvinceId?: number;
+  receiverDistrictId?: number;
+  receiverWardCode?: string;
 }
 
 export async function createOrder(fields: CreateOrderFields): Promise<Order> {
@@ -499,6 +502,68 @@ export async function confirmCodOrder(orderId: string): Promise<{
   return apiFetch('/api/v1/orders/' + encodeURIComponent(orderId) + '/cod-confirm', {
     method: 'POST',
   });
+}
+
+export interface GhnAddressOption {
+  id: number;
+  name: string;
+}
+
+export async function getProvinces(): Promise<GhnAddressOption[]> {
+  return apiFetch<GhnAddressOption[]>('/api/v1/ghn/master/provinces');
+}
+
+export async function getDistricts(
+  provinceId: number,
+): Promise<GhnAddressOption[]> {
+  return apiFetch<GhnAddressOption[]>(
+    `/api/v1/ghn/master/districts?province_id=${provinceId}`,
+  );
+}
+
+export async function getWards(
+  districtId: number,
+): Promise<GhnAddressOption[]> {
+  return apiFetch<GhnAddressOption[]>(
+    `/api/v1/ghn/master/wards?district_id=${districtId}`,
+  );
+}
+
+export interface GhnShipment {
+  id: string;
+  orderId: string;
+  ghnOrderCode: string;
+  serviceId: number | null;
+  fee: number | null;
+  codAmount: number | null;
+  status: string | null;
+  expectedDeliveryTime: string | null;
+  createdAt: string;
+}
+
+export async function createGhnShipment(orderId: string): Promise<{
+  ok: boolean;
+  alreadyCreated?: boolean;
+  ghnOrderCode?: string;
+  status?: string | null;
+  fee?: number | null;
+  expectedDeliveryTime?: string | null;
+}> {
+  return apiFetch(
+    `/api/v1/ghn/orders/${encodeURIComponent(orderId)}/shipment`,
+    { method: 'POST' },
+  );
+}
+
+export async function refreshGhnShipment(orderId: string): Promise<{
+  ghnOrderCode: string;
+  status: string | null;
+  fee: number | null;
+}> {
+  return apiFetch(
+    `/api/v1/ghn/orders/${encodeURIComponent(orderId)}/shipment/refresh`,
+    { method: 'POST' },
+  );
 }
 
 export async function getAdminProducts(

@@ -1,4 +1,12 @@
-import { IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import {
+  IsInt,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+  Min,
+  MinLength,
+} from 'class-validator';
 
 export class CreateOrderDto {
   @IsString()
@@ -17,10 +25,32 @@ export class CreateOrderDto {
   })
   receiverPhone: string;
 
+  /**
+   * Street-level detail, which is all a human needs. The machine-readable
+   * location comes from the three codes below: a courier needs a GHN ward code
+   * to route a parcel, and free text cannot be turned into one reliably.
+   */
   @IsString()
   @MinLength(5)
   @MaxLength(500)
   receiverAddress: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  receiverProvinceId?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  receiverDistrictId?: number;
+
+  /** GHN ward codes are numeric strings, not integers. */
+  @IsOptional()
+  @Matches(/^\d{1,12}$/, {
+    message: 'receiverWardCode phải là mã phường/xã do GHN cấp',
+  })
+  receiverWardCode?: string;
 
   @IsOptional()
   @IsString()

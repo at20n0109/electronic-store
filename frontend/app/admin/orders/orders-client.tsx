@@ -1,7 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { confirmCodOrder, formatVND, getAdminOrders } from '@/lib/api';
+import {
+  confirmCodOrder,
+  createGhnShipment,
+  formatVND,
+  getAdminOrders,
+  refreshGhnShipment,
+} from '@/lib/api';
 import type { AdminOrder } from '@/lib/types';
 
 type Filter = 'PAID' | 'PENDING' | 'CANCELLED' | 'ALL';
@@ -50,6 +56,28 @@ function canApproveCod(order: AdminOrder): boolean {
   );
 }
 
+const GHN_STATUS: Record<string, string> = {
+  ready_to_pick: 'Chờ lấy hàng',
+  picking: 'Đang lấy hàng',
+  cancel: 'Đã huỷ',
+  money_collect_picking: 'Đang thu tiền',
+  picked: 'Đã lấy hàng',
+  storing: 'Đang bàn giao',
+  transporting: 'Đang vận chuyển',
+  sorting: 'Đang phân loại',
+  delivering: 'Đang giao hàng',
+  delivered: 'Đã giao',
+  delivery_fail: 'Giao thất bại',
+  waiting_to_return: 'Chờ hoàn',
+  return: 'Đang hoàn',
+  returned: 'Đã hoàn',
+};
+
+function ghnStatusLabel(status: string | null): string {
+  if (!status) return 'Chưa rõ';
+  return GHN_STATUS[status] ?? status;
+}
+
 export default function AdminOrdersClient() {
   const [filter, setFilter] = useState<Filter>('PENDING');
   const [orders, setOrders] = useState<AdminOrder[]>([]);
@@ -57,6 +85,8 @@ export default function AdminOrdersClient() {
   const [error, setError] = useState('');
   const [confirming, setConfirming] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
+  const [shipping, setShipping] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState<string | null>(null);
 
   const load = useCallback(async (value: Filter) => {
     setLoading(true);
@@ -91,6 +121,56 @@ export default function AdminOrdersClient() {
       );
     } finally {
       setConfirming(null);
+    }
+  }
+
+  async function onCreateShipment(orderId: string) {
+    setShipping(orderId);
+    setNotice('');
+    setError('');
+    try {
+      const result = await createGhnShipment(orderId);
+      setNotice(
+        result.alreadyCreated
+          ? `Đơn này đã có vận đơn GHN ${result.ghnOrderCode}.`
+          : `Đã tạo vận đơn GHN ${result.ghnOrderCode}.`,
+      );
+      await load(filter);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Tạo vận đơn GHN thất bại.',
+      );
+    } finally {
+      setShipping(null);
+    }
+  }
+
+  async function onRefreshShipment(orderId: string) {
+    setRefreshing(orderId);
+    setNotice('');
+    setError('');
+    try {
+      const result = await refreshGhnShipment(orderId);
+      setNotice(
+        `Vận đơn ${result.ghnOrderCode}: ${ghnStatusLabel(result.status)}.`,
+      );
+      // Only the refreshed row changes, so patch it in place instead of
+      // re-fetching every order and losing the current filter position.
+      setOrders((current) =>
+        current.map((row) =>
+          row.id === orderId && row.shipment
+            ? { ...row, shipment: { ...row.shipment, status: result.status } }
+            : row,
+        ),
+      );
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Không cập nhật được trạng thái vận đơn.',
+      );
+    } finally {
+      setRefreshing(null);
     }
   }
 
@@ -210,6 +290,14 @@ export default function AdminOrdersClient() {
                 </div>
               )}
 
+              <ShipmentPanel
+                order={order}
+                creating={shipping === order.id}
+                refreshing={refreshing === order.id}
+                onCreate={() => void onCreateShipment(order.id)}
+                onRefresh={() => void onRefreshShipment(order.id)}
+              />
+
               <dl className="mt-4 grid gap-x-8 gap-y-2 text-sm sm:grid-cols-2">
                 <Row
                   label="Khách hàng"
@@ -265,6 +353,104 @@ function Row({
       <dd className="text-right font-semibold text-zinc-900 dark:text-zinc-50">
         {value}
       </dd>
+    </div>
+  );
+}
+
+/**
+ * GHN consignment for one order. A shipment is only created for an order that
+ * has been paid: GHN takes physical custody once a consignment exists, so
+ * dispatching an unpaid order would put goods in a courier's hands with no
+ * money behind them.
+ */
+function ShipmentPanel({
+  order,
+  creating,
+  refreshing,
+  onCreate,
+  onRefresh,
+}: {
+  order: AdminOrder;
+  creating: boolean;
+  refreshing: boolean;
+  onCreate: () => void;
+  onRefresh: () => void;
+}) {
+  const shipment = order.shipment;
+  const hasAddressCodes = Boolean(
+    order.receiverDistrictId && order.receiverWardCode,
+  );
+  const canCreate = order.status === 'PAID' && hasAddressCodes;
+
+  return (
+    <div className="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/40">
+      {shipment ? (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="text-xs">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-zinc-500 dark:text-zinc-400">
+                Mã vận đơn GHN:
+              </span>
+              <span className="font-mono font-semibold text-zinc-900 dark:text-zinc-50">
+                {shipment.ghnOrderCode}
+              </span>
+              <span className="rounded-full bg-blue-100 px-2.5 py-0.5 font-semibold text-blue-700 dark:bg-blue-900/40 dark:text-blue-400">
+                {ghnStatusLabel(shipment.status)}
+              </span>
+            </div>
+            <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-zinc-500 dark:text-zinc-400">
+              {shipment.fee !== null && (
+                <span>Phí ship: {formatVND(shipment.fee)}</span>
+              )}
+              {shipment.codAmount !== null && shipment.codAmount > 0 && (
+                <span>Thu hộ: {formatVND(shipment.codAmount)}</span>
+              )}
+              {shipment.expectedDeliveryTime && (
+                <span>
+                  Dự kiến giao:{' '}
+                  {new Date(shipment.expectedDeliveryTime).toLocaleString(
+                    'vi-VN',
+                  )}
+                </span>
+              )}
+            </div>
+          </div>
+          <button
+            type="button"
+            disabled={refreshing}
+            onClick={onRefresh}
+            className="h-8 rounded-lg border border-zinc-300 px-3 text-xs font-medium text-zinc-700 transition-colors hover:bg-white disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+          >
+            {refreshing ? 'Đang cập nhật...' : 'Cập nhật trạng thái'}
+          </button>
+        </div>
+      ) : order.status === 'PAID' && !hasAddressCodes ? (
+        <p className="text-xs text-amber-700 dark:text-amber-400">
+          Đơn này đặt trước khi bật chọn tỉnh/quận/phường nên chưa có mã địa
+          chỉ GHN — không tạo được vận đơn. Đặt đơn mới sẽ có đầy đủ.
+        </p>
+      ) : (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs text-zinc-600 dark:text-zinc-400">
+            {order.status === 'PAID'
+              ? 'Đã thanh toán — có thể tạo vận đơn GHN.'
+              : 'Chỉ tạo vận đơn GHN sau khi đơn đã thanh toán.'}
+          </p>
+          <button
+            type="button"
+            disabled={!canCreate || creating}
+            onClick={onCreate}
+            title={
+              canCreate
+                ? undefined
+                : 'Đơn phải đã thanh toán và có đủ mã tỉnh/quận/phường'
+            }
+            className="h-8 rounded-lg bg-red-600 px-3 text-xs font-semibold text-white transition-colors hover:bg-red-500 disabled:opacity-50"
+          >
+            {creating ? 'Đang tạo...' : 'Tạo vận đơn GHN'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

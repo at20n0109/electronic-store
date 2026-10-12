@@ -168,6 +168,18 @@ export type Invoice = {
   qrDataUrl?: string | null;
 };
 
+export type GhnShipment = {
+  id: string;
+  orderId: string;
+  ghnOrderCode: string;
+  serviceId: number | null;
+  fee: number | null;
+  codAmount: number | null;
+  status: string | null;
+  expectedDeliveryTime: string | null;
+  createdAt: string;
+};
+
 export type Order = {
   id: string;
   status: 'PENDING' | 'PAID' | 'CANCELLED';
@@ -177,6 +189,9 @@ export type Order = {
   receiverName: string;
   receiverPhone: string;
   receiverAddress: string;
+  receiverProvinceId?: number | null;
+  receiverDistrictId?: number | null;
+  receiverWardCode?: string | null;
   note?: string | null;
   paidAt?: string | null;
   createdAt: string;
@@ -184,6 +199,7 @@ export type Order = {
   items: OrderItem[];
   payment?: Payment | null;
   invoice?: Invoice | null;
+  shipment?: GhnShipment | null;
 };
 
 export type AdminOrder = Order & {

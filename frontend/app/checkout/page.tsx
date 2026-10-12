@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useCart } from '@/context/CartContext';
 import { checkout, createOrder, getPaymentMethods, safeNavigate, submitAtm } from '@/lib/api';
 import type { CreateOrderFields, PaymentMethod } from '@/lib/api';
+import { LocationPicker } from '@/components/LocationPicker';
 
 export const dynamic = 'force-dynamic';
 
@@ -179,18 +180,26 @@ export default function CheckoutPage() {
 
         <div>
           <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
-            Địa chỉ giao hàng
+            Số nhà, tên đường
           </label>
           <textarea
             value={fields.receiverAddress}
             onChange={(e) =>
               setFields({ ...fields, receiverAddress: e.target.value })
             }
+            placeholder="Ví dụ: 123 Nguyễn Huệ"
             required
             rows={3}
             className="w-full rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-200 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
           />
         </div>
+
+        <LocationPicker
+          provinceId={fields.receiverProvinceId}
+          districtId={fields.receiverDistrictId}
+          wardCode={fields.receiverWardCode}
+          onChange={(next) => setFields({ ...fields, ...next })}
+        />
 
         <div>
           <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">

@@ -97,6 +97,19 @@ export type CartItem = Prisma.CartItemModel
  */
 export type Order = Prisma.OrderModel
 /**
+ * Model GhnShipment
+ * *
+ *  * The GHN (Giao Hàng Nhân) consignment pushed for an order. Kept in its own
+ *  * table rather than as columns on Order: a cancelled consignment can be
+ *  * re-created, and the GHN order code is what every later status lookup keys
+ *  * on, so it needs a stable row to hang off.
+ *  *
+ *  * receiverWardCode / receiverDistrictId on Order are GHN's own ward and
+ *  * district identifiers — the checkout address is plain text for humans, but a
+ *  * consignment cannot be created without these codes.
+ */
+export type GhnShipment = Prisma.GhnShipmentModel
+/**
  * Model Payment
  * 
  */

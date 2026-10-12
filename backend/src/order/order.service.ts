@@ -16,12 +16,14 @@ interface OrderRecord {
   receiverName: string;
   receiverPhone: string;
   receiverAddress: string;
-  note: string | null;  subtotal: unknown;
+  note: string | null;
+  subtotal: unknown;
   shipping: unknown;
   total: unknown;
   payment?: { amount: unknown } | null;
   items?: unknown;
   user?: unknown;
+  shipment?: unknown;
 }
 
 @Injectable()
@@ -86,6 +88,12 @@ export class OrderService {
           receiverPhone: this.crypto.encrypt(dto.receiverPhone),
           receiverAddress: this.crypto.encrypt(dto.receiverAddress),
           note: dto.note ? this.crypto.encrypt(dto.note) : null,
+          // Nullable on purpose: an order placed before these existed (or one
+          // abandoned mid-checkout) still has a working human-readable address,
+          // it just cannot be pushed to a courier until someone fills them in.
+          receiverProvinceId: dto.receiverProvinceId ?? null,
+          receiverDistrictId: dto.receiverDistrictId ?? null,
+          receiverWardCode: dto.receiverWardCode ?? null,
           items: { create: lineItems },
         },
         include: { items: { include: { product: true } } },
@@ -138,6 +146,7 @@ export class OrderService {
       include: {
         items: { include: { product: true } },
         payment: true,
+        shipment: true,
         user: {
           select: { id: true, email: true, name: true, phone: true },
         },

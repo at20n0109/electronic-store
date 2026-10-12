@@ -185,13 +185,45 @@ model Order {
   receiverPhone   String
   receiverAddress String
   note            String?
+  receiverProvinceId Int?
+  receiverDistrictId Int?
+  receiverWardCode    String?
   payment         Payment?
   invoice         Invoice?
   paidAt          DateTime?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  shipment        GhnShipment?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   @@index([userId])
+  @@index([status])
+}
+
+/**
+ * The GHN (Giao Hàng Nhân) consignment pushed for an order. Kept in its own
+ * table rather than as columns on Order: a cancelled consignment can be
+ * re-created, and the GHN order code is what every later status lookup keys
+ * on, so it needs a stable row to hang off.
+ *
+ * receiverWardCode / receiverDistrictId on Order are GHN's own ward and
+ * district identifiers — the checkout address is plain text for humans, but a
+ * consignment cannot be created without these codes.
+ */
+model GhnShipment {
+  id                 String    @id @default(uuid())
+  orderId            String    @unique
+  order              Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  ghnOrderCode       String    @unique
+  serviceId          Int?
+  fee                Int?
+  codAmount          Int?
+  insuranceValue     Int?
+  status             String?
+  expectedDeliveryTime DateTime?
+  createdById        String
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
   @@index([status])
 }
 

@@ -5,6 +5,7 @@ import { CartModule } from './cart/cart.module.js';
 import { CategoriesModule } from './categories/categories.module.js';
 import { CoreModule } from './core/core.module.js';
 import { CryptoModule } from './crypto/crypto.module.js';
+import { GhnModule } from './ghn/ghn.module.js';
 import { HealthModule } from './health/health.module.js';
 import { InvoicesModule } from './invoices/invoices.module.js';
 import { OrderModule } from './order/order.module.js';
@@ -48,6 +49,7 @@ import { UploadsModule } from './uploads/uploads.module.js';
     PaymentsModule,
     InvoicesModule,
     PcBuildsModule,
+    GhnModule,
   ],
 })
 export class AppModule {}
