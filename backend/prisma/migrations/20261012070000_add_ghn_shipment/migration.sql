@@ -31,8 +31,17 @@ CREATE UNIQUE INDEX IF NOT EXISTS "GhnShipment_ghnOrderCode_key" ON "GhnShipment
 CREATE INDEX IF NOT EXISTS "GhnShipment_status_idx" ON "GhnShipment"("status");
 
 -- AddForeignKey
-ALTER TABLE "GhnShipment" ADD CONSTRAINT "GhnShipment_orderId_fkey"
-    FOREIGN KEY ("orderId") REFERENCES "Order"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+-- The FK may already exist on databases that were created via `db push` before
+-- this migration was introduced, so the statement is wrapped in a guard.
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'GhnShipment_orderId_fkey'
+    ) THEN
+        ALTER TABLE "GhnShipment" ADD CONSTRAINT "GhnShipment_orderId_fkey"
+            FOREIGN KEY ("orderId") REFERENCES "Order"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+END $$;
 
 -- AlterTable
 ALTER TABLE "Order"
