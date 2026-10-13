@@ -313,8 +313,9 @@ export class GhnService {
           ghnOrderCode: data.order_code,
           serviceId: data.service_id ?? settings.serviceId ?? null,
           fee: Number.isFinite(data.total_fee) ? data.total_fee : null,
-          codAmount: Number(body.cod_amount) || null,
-          insuranceValue: Number(body.insurance_value) || null,
+          codAmount: typeof body.cod_amount === 'number' ? body.cod_amount : null,
+          insuranceValue:
+            typeof body.insurance_value === 'number' ? body.insurance_value : null,
           status: 'ready_to_pick',
           expectedDeliveryTime: data.expected_delivery_time
             ? new Date(data.expected_delivery_time)
