@@ -18,10 +18,11 @@ export class CreateOrderDto {
   receiverName: string;
 
   @IsString()
-  @MinLength(8)
-  @MaxLength(20)
-  @Matches(/^\d{8,20}$/, {
-    message: 'receiverPhone chỉ được chứa chữ số',
+  @MinLength(10)
+  @MaxLength(11)
+  @Matches(/^0\d{9,10}$/, {
+    message:
+      'receiverPhone phải là số điện thoại Việt Nam hợp lệ (bắt đầu bằng 0, 10-11 chữ số)',
   })
   receiverPhone: string;
 

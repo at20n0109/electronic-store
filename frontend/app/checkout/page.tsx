@@ -75,8 +75,8 @@ export default function CheckoutPage() {
       setError('Vui lòng nhập đúng họ tên khách hàng.');
       return;
     }
-    if (!/^\d{8,15}$/.test(fields.receiverPhone)) {
-      setError('Số điện thoại phải gồm 8-15 chữ số.');
+    if (!/^0\d{9,10}$/.test(fields.receiverPhone)) {
+      setError('Số điện thoại phải bắt đầu bằng 0 và có 10-11 chữ số.');
       return;
     }
     if (
@@ -176,7 +176,7 @@ export default function CheckoutPage() {
             value={fields.receiverPhone}
             type="tel"
             inputMode="numeric"
-            maxLength={15}
+            maxLength={11}
             onChange={(e) =>
               setFields({
                 ...fields,
