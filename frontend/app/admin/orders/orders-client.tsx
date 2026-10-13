@@ -73,16 +73,6 @@ const GHN_STATUS: Record<string, string> = {
   returned: 'Đã hoàn',
 };
 
-function ghnIssue(order: AdminOrder): string | null {
-  if (order.status !== 'PAID') return null;
-  const hasAddressCodes = Boolean(
-    order.receiverProvinceId && order.receiverDistrictId && order.receiverWardCode,
-  );
-  if (!hasAddressCodes) return 'missing-address';
-  if (!order.shipment) return 'failed';
-  return null;
-}
-
 function ghnStatusLabel(status: string | null): string {
   if (!status) return 'Chưa rõ';
   return GHN_STATUS[status] ?? status;

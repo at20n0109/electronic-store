@@ -47,6 +47,7 @@ function SearchableSelect({
   const [typed, setTyped] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const selected = options.find((option) => String(option.id) === value);
 
@@ -56,6 +57,17 @@ function SearchableSelect({
     return options.filter((option) => normalize(option.name).includes(needle));
   }, [options, open, typed]);
 
+  function openList(): void {
+    setTyped('');
+    setActiveIndex(0);
+    setOpen(true);
+  }
+
+  // The dropdown is opened from pointer events rather than React's onFocus: in
+  // this build onFocus is never delivered (the input takes DOM focus but no
+  // focus event reaches React), which left the list permanently shut and the
+  // address unselectable. Native mousedown still fires, and preventDefault
+  // keeps DOM focus on the input so the user can keep typing to filter.
   useEffect(() => {
     if (!open) return;
     function onPointerDown(event: MouseEvent) {
@@ -73,6 +85,7 @@ function SearchableSelect({
         {label}
       </label>
       <input
+        ref={inputRef}
         type="text"
         role="combobox"
         aria-expanded={open}
@@ -82,10 +95,15 @@ function SearchableSelect({
         disabled={disabled}
         value={selected?.name ?? (open ? typed : '')}
         placeholder={options.length === 0 ? loadingHint : placeholder}
-        onFocus={() => {
-          setTyped('');
-          setActiveIndex(0);
-          setOpen(true);
+        onPointerDown={(event) => {
+          event.preventDefault();
+          openList();
+          inputRef.current?.focus();
+        }}
+        onMouseDown={(event) => {
+          event.preventDefault();
+          openList();
+          inputRef.current?.focus();
         }}
         onChange={(event) => {
           setTyped(event.target.value);
@@ -93,21 +111,16 @@ function SearchableSelect({
           setActiveIndex(0);
           onChange(undefined);
         }}
-        onBlur={() => {
-          setOpen(false);
-          setTyped('');
-        }}
         onKeyDown={(event) => {
+          if (!open && event.key !== 'Escape') {
+            openList();
+          }
           if (event.key === 'Escape') {
             setOpen(false);
             return;
           }
           if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
             event.preventDefault();
-            if (!open) {
-              setOpen(true);
-              return;
-            }
             const step = event.key === 'ArrowDown' ? 1 : -1;
             setActiveIndex(
               (current) =>
@@ -117,10 +130,6 @@ function SearchableSelect({
           }
           if (event.key === 'Enter') {
             event.preventDefault();
-            if (!open) {
-              setOpen(true);
-              return;
-            }
             const picked = matches[activeIndex];
             if (picked) {
               onChange(String(picked.id));
