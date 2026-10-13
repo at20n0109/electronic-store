@@ -191,10 +191,14 @@ function SearchableSelect({
  * master data: they are what a courier needs to route a parcel, so the order
  * stores them alongside the free-text street address.
  *
- * Each dependent list is fetched only for the currently selected parent, and the
- * child select is keyed by that parent so it remounts — dropping stale options
- * — rather than being emptied by a reset. The "loading" hint is derived from the
- * list being empty, so no effect has to set state up front.
+ * Each dependent list is fetched only for the currently selected parent. The
+ * child selects are deliberately NOT keyed by their parent id: re-keying
+ * unmounts the field, and the unmount/remount cycle left a second, unlocked
+ * copy of the district input in the DOM — one that accepted districts from a
+ * different province. Clearing the child value on parent change (done in the
+ * parent's onChange) drops stale options just as well, without remounting.
+ * The "loading" hint is derived from the list being empty, so no effect has to
+ * set state up front.
  */
 export function LocationPicker({
   provinceId,
@@ -287,7 +291,6 @@ export function LocationPicker({
       />
 
       <SearchableSelect
-        key={provinceId ?? 'none'}
         label="Quận/Huyện"
         placeholder="— Chọn quận/huyện —"
         loadingHint={provinceId ? 'Đang tải...' : '— Chọn quận/huyện —'}
@@ -303,7 +306,6 @@ export function LocationPicker({
       />
 
       <SearchableSelect
-        key={districtId ?? 'none'}
         label="Phường/Xã"
         placeholder="— Chọn phường/xã —"
         loadingHint={districtId ? 'Đang tải...' : '— Chọn phường/xã —'}
