@@ -6,6 +6,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CartService } from '../cart/cart.service.js';
 import { CryptoService } from '../crypto/crypto.service.js';
+import { GhnService } from '../ghn/ghn.service.js';
 import { OrderStatus, PaymentProvider, PaymentStatus } from '../generated/prisma/enums.js';
 import type { CreateOrderDto } from './dto/create-order.dto.js';
 
@@ -32,6 +33,7 @@ export class OrderService {
     private readonly prisma: PrismaService,
     private readonly cart: CartService,
     private readonly crypto: CryptoService,
+    private readonly ghn: GhnService,
   ) {}
 
   async create(userId: string, dto: CreateOrderDto) {
@@ -169,7 +171,7 @@ export class OrderService {
    * be released.
    */
   async confirmCod(orderId: string, confirmedBy: string) {
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const order = await tx.order.findUnique({
         where: { id: orderId },
         include: { payment: true },
@@ -225,6 +227,33 @@ export class OrderService {
         confirmedAt,
       };
     });
+
+    // Outside the transaction on purpose: GHN is a network call whose latency
+    // must not extend the window in which the row lock is held, and a courier
+    // outage must not roll back a payment a human has already accepted.
+    if (result.ok && !result.alreadyConfirmed) {
+      await this.tryCreateShipment(orderId, confirmedBy);
+    }
+
+    return result;
+  }
+
+  /**
+   * Pushes a GHN consignment for a paid order, swallowing every failure. The
+   * caller is a payment path whose result the customer waits on, so a courier
+   * outage is logged and left for the admin panel's re-push button rather than
+   * surfaced as a checkout error.
+   */
+  private async tryCreateShipment(orderId: string, createdById: string) {
+    try {
+      await this.ghn.createShipment(orderId, createdById);
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error(
+        `Khong the tao van don GHN cho don ${orderId}`,
+        error instanceof Error ? error.message : error,
+      );
+    }
   }
 
   private toView(order: OrderRecord) {

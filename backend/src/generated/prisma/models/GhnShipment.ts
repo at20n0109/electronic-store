@@ -15,14 +15,15 @@ import type * as Prisma from "../internal/prismaNamespace.js"
 /**
  * Model GhnShipment
  * *
- *  * The GHN (Giao Hàng Nhân) consignment pushed for an order. Kept in its own
- *  * table rather than as columns on Order: a cancelled consignment can be
- *  * re-created, and the GHN order code is what every later status lookup keys
- *  * on, so it needs a stable row to hang off.
+ *  * The Shippo label purchased for an order. Kept in its own table rather than as
+ *  * columns on Order because a Shippo shipment is a two-step exchange: the
+ *  * shipment object is created first to obtain rates, then a rate is turned into a
+ *  * label. The shippoShipmentId is what every later rate/label/tracking lookup
+ *  * keys on, so it needs a stable row to hang off.
  *  *
- *  * receiverWardCode / receiverDistrictId on Order are GHN's own ward and
- *  * district identifiers — the checkout address is plain text for humans, but a
- *  * consignment cannot be created without these codes.
+ *  * The structured receiver fields on Order feed address_to: Shippo's couriers
+ *  * need city/state/zip/country, not a Vietnamese ward code, so the free-text
+ *  * receiverAddress is only the street line.
  */
 export type GhnShipmentModel = runtime.Types.Result.DefaultSelection<Prisma.$GhnShipmentPayload>
 

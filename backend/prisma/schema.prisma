@@ -200,7 +200,7 @@ model Order {
 }
 
 /**
- * The GHN (Giao Hàng Nhân) consignment pushed for an order. Kept in its own
+ * The GHN (Giao Hàng Nhậnn) consignment pushed for an order. Kept in its own
  * table rather than as columns on Order: a cancelled consignment can be
  * re-created, and the GHN order code is what every later status lookup keys
  * on, so it needs a stable row to hang off.

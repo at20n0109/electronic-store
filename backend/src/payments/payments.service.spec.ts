@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { ConfigService } from '@nestjs/config';
 import type { PrismaService } from '../prisma/prisma.service.js';
 import type { CryptoService } from '../crypto/crypto.service.js';
+import type { GhnService } from '../ghn/ghn.service.js';
 import { PaymentsService } from './payments.service.js';
 
 const BANK_INFO = JSON.stringify({
@@ -21,8 +22,11 @@ function buildService(config: Record<string, string> = {}) {
   } as unknown as ConfigService;
   const prisma = {} as unknown as PrismaService;
   const crypto = {} as unknown as CryptoService;
+  const ghn = {
+    createShipment: async () => ({ ok: true }),
+  } as unknown as GhnService;
 
-  return new PaymentsService(get, prisma, crypto);
+  return new PaymentsService(get, prisma, crypto, ghn);
 }
 
 function isProviderSelectable(

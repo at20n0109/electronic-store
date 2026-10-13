@@ -1,4 +1,4 @@
-import {
+﻿import {
   BadRequestException,
   Injectable,
   NotFoundException,
@@ -71,7 +71,7 @@ export class GhnService {
 
   /**
    * Resolved on first use rather than in the constructor so a deployment that
-   * has not configured GHN still boots — every other feature keeps working and
+   * has not configured GHN still boots ΓÇö every other feature keeps working and
    * only the GHN endpoints report that they are unconfigured.
    */
   private settings(): ShopSettings {
@@ -80,14 +80,14 @@ export class GhnService {
 
     if (!token || !Number.isFinite(shopId) || shopId <= 0) {
       throw new BadRequestException(
-        'GHN chưa được cấu hình. Vui lòng liên hệ quản trị viên để bật tích hợp giao hàng.',
+        'GHN ch╞░a ─æ╞░ß╗úc cß║Ñu h├¼nh. Vui l├▓ng li├¬n hß╗ç quß║ún trß╗ï vi├¬n ─æß╗â bß║¡t t├¡ch hß╗úp giao h├áng.',
       );
     }
 
     return {
       baseUrl: (
         this.config.get<string>('GHN_BASE_URL') ??
-        'https://dev-online-gateway.ghn.vn'
+        'https://online-gateway.ghn.vn'
       ).replace(/\/+$/, ''),
       token,
       shopId,
@@ -204,7 +204,7 @@ export class GhnService {
 
     if (order.status !== OrderStatus.PAID) {
       throw new BadRequestException(
-        'Chỉ tạo vận đơn GHN cho đơn đã thanh toán.',
+        'Chß╗ë tß║ío vß║¡n ─æ╞ín GHN cho ─æ╞ín ─æ├ú thanh to├ín.',
       );
     }
 
@@ -214,7 +214,7 @@ export class GhnService {
       !order.receiverProvinceId
     ) {
       throw new BadRequestException(
-        'Đơn hàng chưa có mã tỉnh/quận/phường. Chỉ đơn đặt sau khi bật chọn địa chỉ chuẩn mới tạo được vận đơn GHN.',
+        '─É╞ín h├áng ch╞░a c├│ m├ú tß╗ënh/quß║¡n/ph╞░ß╗¥ng. Chß╗ë ─æ╞ín ─æß║╖t sau khi bß║¡t chß╗ìn ─æß╗ïa chß╗ë chuß║⌐n mß╗¢i tß║ío ─æ╞░ß╗úc vß║¡n ─æ╞ín GHN.',
       );
     }
 
@@ -226,7 +226,7 @@ export class GhnService {
       !settings.fromAddress
     ) {
       throw new BadRequestException(
-        'Chưa cấu hình địa chỉ kho gửi hàng (GHN_FROM_*). Vui lòng cập nhật thông tin shop trên portal GHN trước.',
+        'Ch╞░a cß║Ñu h├¼nh ─æß╗ïa chß╗ë kho gß╗¡i h├áng (GHN_FROM_*). Vui l├▓ng cß║¡p nhß║¡t th├┤ng tin shop tr├¬n portal GHN tr╞░ß╗¢c.',
       );
     }
 
@@ -429,14 +429,14 @@ export class GhnService {
     // header precisely so it stays out of anything that records a request line.
     if (!response.ok) {
       throw new BadRequestException(
-        `GHN trả về lỗi ${response.status}. Vui lòng kiểm tra cấu hình tích hợp.`,
+        `GHN trß║ú vß╗ü lß╗ùi ${response.status}. Vui l├▓ng kiß╗âm tra cß║Ñu h├¼nh t├¡ch hß╗úp.`,
       );
     }
 
     const payload = (await response.json()) as GhnEnvelope<T>;
     if (payload.code !== 200 && payload.code !== 201) {
       throw new BadRequestException(
-        payload.message || 'GHN từ chối yêu cầu.',
+        payload.message || 'GHN tß╗½ chß╗æi y├¬u cß║ºu.',
       );
     }
 

@@ -21,6 +21,7 @@ import {
   vnpayOrderIdFromTxnRef,
 } from './providers/vnpay.provider.js';
 import { ZalopayPaymentProvider } from './providers/zalopay.provider.js';
+import { GhnService } from '../ghn/ghn.service.js';
 import type {
   OrderForPayment,
   OrderLineItem,
@@ -91,6 +92,7 @@ export class PaymentsService {
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
     private readonly crypto: CryptoService,
+    private readonly ghn: GhnService,
   ) {
     const get = (key: string) => this.config.get<string>(key);
     this.providers = {
@@ -277,6 +279,34 @@ export class PaymentsService {
       where: { id: order.id },
       data: { status: 'PAID', paidAt: new Date() },
     });
+
+    // A paid order is what makes it eligible for a GHN consignment, so this is
+    // the natural point to push one to the carrier. It is best-effort: the
+    // money has already moved, and failing the whole callback because a courier
+    // API is down would strand a paid order that a human can re-push from the
+    // admin panel.
+    await this.tryCreateShipment(order.id);
+  }
+
+  /**
+   * Pushes a GHN consignment for a paid order, swallowing every failure. Any
+   * error is logged rather than thrown because the caller is a payment callback
+   * whose result the customer is waiting on. `createdById` is the buyer's own
+   * id because no staff member is present on an automated callback.
+   */
+  private async tryCreateShipment(orderId: string) {
+    try {
+      const order = await this.prisma.order.findUnique({
+        where: { id: orderId },
+      });
+      await this.ghn.createShipment(orderId, order?.userId ?? 'system');
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error(
+        `Khong the tao van don GHN cho don ${orderId}`,
+        error instanceof Error ? error.message : error,
+      );
+    }
   }
 
   async handleVnpayReturn(userId: string, query: Record<string, string>) {

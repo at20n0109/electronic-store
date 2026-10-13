@@ -79,6 +79,16 @@ export default function CheckoutPage() {
       setError('Số điện thoại phải gồm 8-15 chữ số.');
       return;
     }
+    if (
+      !fields.receiverProvinceId ||
+      !fields.receiverDistrictId ||
+      !fields.receiverWardCode
+    ) {
+      setError(
+        'Vui lòng chọn đầy đủ tỉnh/thành, quận/huyện và phường/xã. Shipper cần mã địa chỉ này để giao đúng nơi.',
+      );
+      return;
+    }
     setBusy(true);
     setError('');
     try {
