@@ -260,7 +260,10 @@ export class GhnService {
       weight: settings.defaultWeight,
     }));
 
-    const body = {
+    // GHN rejects a JSON body where `service_id` is the number 0. When no
+    // concrete service is configured, omit the field entirely so GHN resolves
+    // one from `service_type_id` instead of treating 0 as invalid.
+    const body: Record<string, unknown> = {
       payment_type_id: 2,
       note: 'GHN integration',
       required_note: 'CHOTHUHANG',
@@ -288,12 +291,13 @@ export class GhnService {
       width: settings.defaultWidth,
       height: settings.defaultHeight,
       insurance_value: Math.round(Number(order.total)),
-      service_id: settings.serviceId,
-      service_type_id: settings.serviceId
-        ? undefined
-        : settings.serviceTypeId,
+      service_type_id: settings.serviceTypeId,
       items,
     };
+    if (settings.serviceId > 0) {
+      body.service_id = settings.serviceId;
+      delete body.service_type_id;
+    }
 
     const data = await this.post<{
       order_code: string;
@@ -434,8 +438,9 @@ export class GhnService {
     // The token is never logged, and neither is the full URL: it is sent in a
     // header precisely so it stays out of anything that records a request line.
     if (!response.ok) {
+      const text = await response.text().catch(() => '');
       throw new BadRequestException(
-        `GHN trß║ú vß╗ü lß╗ùi ${response.status}. Vui l├▓ng kiß╗âm tra cß║Ñu h├¼nh t├¡ch hß╗úp.`,
+        `GHN trả về lỗi ${response.status}. Vui lòng kiểm tra cấu hình tích hợp. ${text}`,
       );
     }
 
