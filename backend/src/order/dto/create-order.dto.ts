@@ -45,9 +45,12 @@ export class CreateOrderDto {
   @Min(1)
   receiverDistrictId?: number;
 
-  /** GHN ward codes are numeric strings, not integers. */
+  /**
+   * GHN ward codes are opaque identifiers. Many are numeric, but some districts
+   * use alphanumeric codes (e.g. "1B1731"), so the validator accepts either.
+   */
   @IsOptional()
-  @Matches(/^\d{1,12}$/, {
+  @Matches(/^[A-Za-z0-9-]{1,20}$/, {
     message: 'receiverWardCode phải là mã phường/xã do GHN cấp',
   })
   receiverWardCode?: string;

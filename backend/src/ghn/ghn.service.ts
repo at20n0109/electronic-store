@@ -27,7 +27,11 @@ interface GhnEnvelope<T> {
 }
 
 export interface GhnAddress {
-  id: number;
+  /**
+   * Province and district IDs are integers; ward codes are alphanumeric GHN
+   * identifiers (e.g. "1B1731"), so this field stays a string everywhere.
+   */
+  id: string | number;
   name: string;
 }
 
@@ -114,7 +118,7 @@ export class GhnService {
         ProvinceName: string;
       }[]>(`${MASTER_BASE}/province`);
       return payload
-        .map((row) => ({ id: row.ProvinceID, name: row.ProvinceName }))
+        .map((row) => ({ id: String(row.ProvinceID), name: row.ProvinceName }))
         .sort((a, b) => a.name.localeCompare(b.name, 'vi'));
     });
   }
@@ -128,7 +132,7 @@ export class GhnService {
         `${MASTER_BASE}/district?province_id=${encodeURIComponent(provinceId)}`,
       );
       return payload
-        .map((row) => ({ id: row.DistrictID, name: row.DistrictName }))
+        .map((row) => ({ id: String(row.DistrictID), name: row.DistrictName }))
         .sort((a, b) => a.name.localeCompare(b.name, 'vi'));
     });
   }
@@ -141,10 +145,12 @@ export class GhnService {
         `${MASTER_BASE}/ward?district_id=${encodeURIComponent(districtId)}`,
         { district_id: districtId },
       );
-      return payload.map((row) => ({
-        id: Number(row.WardCode),
-        name: row.WardName,
-      }));
+      return payload
+        .map((row) => ({
+          id: String(row.WardCode),
+          name: row.WardName,
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'vi'));
     });
   }
 

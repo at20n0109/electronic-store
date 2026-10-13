@@ -505,7 +505,8 @@ export async function confirmCodOrder(orderId: string): Promise<{
 }
 
 export interface GhnAddressOption {
-  id: number;
+  /** Stringified so ward codes ("1B1731") and numeric province/district IDs share one shape. */
+  id: string;
   name: string;
 }
 
