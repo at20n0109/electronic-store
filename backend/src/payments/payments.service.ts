@@ -737,7 +737,12 @@ export class PaymentsService {
       return { ok: true, alreadyConfirmed: true };
     }
 
-    await this.prisma.$transaction(async (tx) => {
+    // The consignment push happens after the transaction commits, for the same
+    // reason confirmCod does it: GHN is a network call whose latency must not
+    // extend the row-lock window, and a courier outage must not roll back a
+    // payment a human has already accepted. Without this call an ATM-confirmed
+    // order reaches PAID but never reaches GHN — exactly the bug this fixes.
+    const settledOrderId = await this.prisma.$transaction(async (tx) => {
       await tx.paymentMetadata.update({
         where: { id: meta.id },
         data: {
@@ -775,8 +780,14 @@ export class PaymentsService {
           where: { id: payment.id },
           data: { status: PaymentStatus.SUCCEEDED },
         });
+        return payment.orderId;
       }
+      return null;
     });
+
+    if (settledOrderId) {
+      await this.tryCreateShipment(settledOrderId);
+    }
 
     return { ok: true, status: 'confirmed' };
   }

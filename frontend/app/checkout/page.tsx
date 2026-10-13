@@ -75,8 +75,10 @@ export default function CheckoutPage() {
       setError('Vui lòng nhập đúng họ tên khách hàng.');
       return;
     }
-    if (!/^0\d{9,10}$/.test(fields.receiverPhone)) {
-      setError('Số điện thoại phải bắt đầu bằng 0 và có 10-11 chữ số.');
+    if (!/^0[35789]\d{8}$/.test(fields.receiverPhone)) {
+      setError(
+        'Số điện thoại phải là số di động Việt Nam 10 chữ số (03x, 05x, 07x, 08x, 09x). GHN từ chối các số không đúng định dạng này.',
+      );
       return;
     }
     if (
@@ -176,7 +178,7 @@ export default function CheckoutPage() {
             value={fields.receiverPhone}
             type="tel"
             inputMode="numeric"
-            maxLength={11}
+            maxLength={10}
             onChange={(e) =>
               setFields({
                 ...fields,

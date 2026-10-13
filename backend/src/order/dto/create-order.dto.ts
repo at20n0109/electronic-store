@@ -19,10 +19,10 @@ export class CreateOrderDto {
 
   @IsString()
   @MinLength(10)
-  @MaxLength(11)
-  @Matches(/^0\d{9,10}$/, {
+  @MaxLength(10)
+  @Matches(/^0[35789]\d{8}$/, {
     message:
-      'receiverPhone phải là số điện thoại Việt Nam hợp lệ (bắt đầu bằng 0, 10-11 chữ số)',
+      'receiverPhone must be a 10-digit Vietnamese mobile number (03x, 05x, 07x, 08x, 09x)',
   })
   receiverPhone: string;
 
