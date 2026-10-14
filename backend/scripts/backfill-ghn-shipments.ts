@@ -62,6 +62,7 @@ async function main() {
           defaultLength: Number(process.env.GHN_DEFAULT_LENGTH ?? '30'),
           defaultWidth: Number(process.env.GHN_DEFAULT_WIDTH ?? '20'),
           defaultHeight: Number(process.env.GHN_DEFAULT_HEIGHT ?? '10'),
+          maxInsuranceValue: Number(process.env.GHN_MAX_INSURANCE_VALUE ?? '500000'),
         };
         const items = order.items ?? [];
         const body: Record<string, unknown> = {
@@ -90,7 +91,10 @@ async function main() {
           length: settings.defaultLength,
           width: settings.defaultWidth,
           height: settings.defaultHeight,
-          insurance_value: Math.round(Number(order.total)),
+          insurance_value: Math.min(
+            Math.round(Number(order.total)),
+            settings.maxInsuranceValue,
+          ),
           service_type_id: settings.serviceTypeId,
           items: items.map((item) => ({
             name: item.name,

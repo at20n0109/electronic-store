@@ -50,6 +50,7 @@ interface ShopSettings {
   defaultLength: number;
   defaultWidth: number;
   defaultHeight: number;
+  maxInsuranceValue: number;
 }
 
 interface CacheEntry<T> {
@@ -108,6 +109,12 @@ export class GhnService {
       defaultLength: Number(this.config.get<string>('GHN_DEFAULT_LENGTH') ?? '30'),
       defaultWidth: Number(this.config.get<string>('GHN_DEFAULT_WIDTH') ?? '20'),
       defaultHeight: Number(this.config.get<string>('GHN_DEFAULT_HEIGHT') ?? '10'),
+      // GHN caps the declared insurance value per shop tier. New/unverified
+      // shops are limited to 500.000 VND; raising this env after the shop is
+      // verified lets higher-value orders declare their full total.
+      maxInsuranceValue: Number(
+        this.config.get<string>('GHN_MAX_INSURANCE_VALUE') ?? '500000',
+      ),
     };
   }
 
@@ -290,7 +297,10 @@ export class GhnService {
       length: settings.defaultLength,
       width: settings.defaultWidth,
       height: settings.defaultHeight,
-      insurance_value: Math.round(Number(order.total)),
+      insurance_value: Math.min(
+        Math.round(Number(order.total)),
+        settings.maxInsuranceValue,
+      ),
       service_type_id: settings.serviceTypeId,
       items,
     };
