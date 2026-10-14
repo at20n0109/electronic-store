@@ -25,7 +25,20 @@ async function main() {
   for (const order of stuck) {
     const label = order.id.slice(0, 8);
     const phone = crypto.decrypt(order.receiverPhone);
-    console.log(`\n[${label}] paidAt=${order.paidAt?.toISOString()} phone=${phone} provider=${order.payment?.provider}`);
+    const name = crypto.decrypt(order.receiverName);
+    const address = crypto.decrypt(order.receiverAddress);
+    console.log(
+      `\n[${label}] paidAt=${order.paidAt?.toISOString()} provider=${order.payment?.provider} total=${order.total}`,
+    );
+    console.log(`  to_name=${JSON.stringify(name)}`);
+    console.log(`  to_phone=${JSON.stringify(phone)}`);
+    console.log(`  to_address=${JSON.stringify(address)}`);
+    console.log(
+      `  codes: province=${order.receiverProvinceId} district=${order.receiverDistrictId} ward=${order.receiverWardCode}`,
+    );
+    console.log(
+      `  items: ${order.items.map((i) => `${i.name} x${i.quantity} @${i.price}`).join(' | ')}`,
+    );
     if (!phone || !/^0[35789]\d{8}$/.test(phone)) {
       console.log(`  SKIP: phone "${phone}" is not a valid 10-digit VN mobile. Fix the phone in the DB (receiverPhone is AES-256-GCM encrypted) or cancel and recreate the order.`);
       continue;
@@ -104,9 +117,15 @@ async function main() {
           },
           body: JSON.stringify(body),
         });
-        const data = await res.json() as { code: number; message: string; data?: { order_code?: string; total_fee?: number; expected_delivery_time?: string; service_id?: number } };
+        const rawText = await res.text();
+        let data: { code?: number; message?: string; data?: { order_code?: string; total_fee?: number; expected_delivery_time?: string; service_id?: number } };
+        try {
+          data = JSON.parse(rawText);
+        } catch {
+          throw new Error(`GHN non-JSON response (HTTP ${res.status}): ${rawText.slice(0, 500)}`);
+        }
         if (data.code !== 200 || !data.data?.order_code) {
-          throw new Error(`GHN ${data.code}: ${data.message}`);
+          throw new Error(`GHN code=${data.code} message=${data.message} raw=${rawText.slice(0, 500)}`);
         }
         await tx.ghnShipment.create({
           data: {

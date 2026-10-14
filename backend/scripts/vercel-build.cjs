@@ -75,6 +75,21 @@ if (migrateEnabled) {
   });
 }
 
+// Ops hook: deploy with `-b GHN_BACKFILL=1` to re-attempt GHN consignments for
+// stuck PAID orders (address present, no GhnShipment row). Idempotent — orders
+// that already have a shipment are skipped. Failure does not fail the build;
+// each attempt is logged with the decrypted receiver fields and the full GHN
+// response so the rejection reason is visible in build logs. Off by default.
+if (process.env.GHN_BACKFILL === '1') {
+  process.chdir(path.join(__dirname, '..'));
+  console.log('[vercel-build] GHN_BACKFILL=1 — re-attempting stuck GHN shipments...');
+  try {
+    execSync('npx tsx scripts/backfill-ghn-shipments.ts', { stdio: 'inherit', env: process.env });
+  } catch (err) {
+    console.error('[vercel-build] GHN backfill failed (non-fatal):', err.message);
+  }
+}
+
 const clientPath = path.join(__dirname, '..', 'dist', 'generated', 'prisma', 'client.js');
 const raw = fs.readFileSync(clientPath, 'utf8');
 if (raw.includes('import.meta.url')) {
