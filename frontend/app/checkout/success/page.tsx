@@ -23,8 +23,16 @@ export default async function CheckoutSuccessPage({
       <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
         {orderId && (
           <Link
-            href={`/invoice/${orderId}`}
+            href={`/orders/${orderId}`}
             className="flex h-12 w-full items-center justify-center rounded-xl bg-red-600 px-6 text-sm font-semibold text-white transition-colors hover:bg-red-500 sm:w-auto"
+          >
+            Theo dõi đơn hàng
+          </Link>
+        )}
+        {orderId && (
+          <Link
+            href={`/invoice/${orderId}`}
+            className="flex h-12 w-full items-center justify-center rounded-xl border border-zinc-300 px-6 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900 sm:w-auto"
           >
             Xem hoá đơn & PDF
           </Link>

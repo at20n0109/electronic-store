@@ -112,7 +112,11 @@ export class OrderService {
   async myOrders(userId: string) {
     const orders = await this.prisma.order.findMany({
       where: { userId },
-      include: { items: { include: { product: true } } },
+      include: {
+        items: { include: { product: true } },
+        payment: true,
+        shipment: true,
+      },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -122,7 +126,11 @@ export class OrderService {
   async myOrder(userId: string, orderId: string) {
     const order = await this.prisma.order.findFirst({
       where: { id: orderId, userId },
-      include: { items: { include: { product: true } } },
+      include: {
+        items: { include: { product: true } },
+        payment: true,
+        shipment: true,
+      },
     });
 
     if (!order) {
@@ -130,6 +138,23 @@ export class OrderService {
     }
 
     return this.toView(order);
+  }
+
+  /**
+   * Re-reads the GHN consignment status for an order the caller owns. The
+   * ownership check happens here rather than in the controller because the
+   * GHN service only knows the order id, and the refresh route is the one
+   * customer-facing endpoint that can trigger a carrier API call.
+   */
+  async refreshMyShipment(userId: string, orderId: string) {
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, userId },
+      select: { id: true },
+    });
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+    return this.ghn.refreshShipment(orderId);
   }
 
   /**

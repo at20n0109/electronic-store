@@ -63,4 +63,19 @@ export class OrderController {
     const user = (req as unknown as { user: { id: string } }).user;
     return this.orders.myOrder(user.id, id);
   }
+
+  /**
+   * Lets the order's owner pull a fresh GHN status for their own consignment.
+   * Ownership is enforced in the service; CSRF is required because this
+   * triggers a carrier-side API call whose result is persisted.
+   */
+  @Post(':id/shipment/refresh')
+  @UseGuards(CsrfGuard)
+  async refreshShipment(
+    @Req() req: Request,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    const user = (req as unknown as { user: { id: string } }).user;
+    return this.orders.refreshMyShipment(user.id, id);
+  }
 }

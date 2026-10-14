@@ -504,6 +504,17 @@ export async function confirmCodOrder(orderId: string): Promise<{
   });
 }
 
+export async function refreshOrderShipment(orderId: string): Promise<{
+  ghnOrderCode: string;
+  status: string | null;
+  fee?: number | null;
+}> {
+  return apiFetch(
+    '/api/v1/orders/' + encodeURIComponent(orderId) + '/shipment/refresh',
+    { method: 'POST' },
+  );
+}
+
 export interface GhnAddressOption {
   /** Stringified so ward codes ("1B1731") and numeric province/district IDs share one shape. */
   id: string;
