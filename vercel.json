@@ -49,6 +49,10 @@
         {
           "key": "Cache-Control",
           "value": "public, max-age=2592000, stale-while-revalidate=86400"
+        },
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "https://electronic-store-gold.vercel.app"
         }
       ]
     },
@@ -57,7 +61,7 @@
       "headers": [
         {
           "key": "Cache-Control",
-          "value": "no-store"
+          "value": "no-cache, no-store, must-revalidate"
         },
         {
           "key": "Access-Control-Allow-Origin",
