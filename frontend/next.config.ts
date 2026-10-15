@@ -3,6 +3,7 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   // Keep Turbopack's dependency boundary at this application, not the user home.
   turbopack: { root: process.cwd() },
+  poweredByHeader: false,
   images: {
     unoptimized: true,
     remotePatterns: [

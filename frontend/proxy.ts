@@ -18,7 +18,7 @@ function buildCsp(nonce: string): string {
     "default-src 'self'",
     scriptSrc,
     `style-src 'self' 'nonce-${nonce}' 'unsafe-inline'`,
-    "img-src 'self' data: blob: https: http://localhost:9000 http://127.0.0.1:9000 http://localhost:3001 http://127.0.0.1:3001",
+    "img-src 'self' data: blob: https://*.r2.dev https://*.r2.cloudflarestorage.com http://localhost:9000 http://127.0.0.1:9000 http://localhost:3001 http://127.0.0.1:3001",
     "font-src 'self' data:",
     "connect-src 'self' https://*.r2.cloudflarestorage.com https://*.r2.dev http://localhost:3001 http://127.0.0.1:3001",
     "object-src 'none'",

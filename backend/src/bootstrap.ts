@@ -15,6 +15,8 @@ async function bootstrap() {
     logger: ['error', 'warn', 'log'],
   });
 
+  app.getHttpAdapter().getInstance()?.disable?.('x-powered-by');
+
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
